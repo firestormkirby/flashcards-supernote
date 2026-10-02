@@ -1,0 +1,30 @@
+# OS / editors
+.DS_Store
+.idea
+*.iml
+
+# Android / Gradle
+build/
+.gradle
+local.properties
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+.kotlin/
+android/app/src/main/assets/index.android.bundle
+
+# node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Plugin build output
+buildgenerated/
+*.snplg
+android_project_react_packages.txt
+
+# Metro / Jest
+.metro-health-check*
+/coverage
+*.jsbundle

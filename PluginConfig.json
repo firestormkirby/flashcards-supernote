@@ -1,0 +1,15 @@
+{
+  "pluginID": "sje1wu7fsvoa3qho",
+  "pluginKey": "cards",
+  "name": "Cards",
+  "desc": "Calm, offline flashcards with spaced repetition. Study without leaving your notebook.",
+  "author": "mrgrtapk (original app), Supernote port by firestormkirby",
+  "iconPath": "assets/icon.png",
+  "versionCode": "1",
+  "versionName": "1.0.0",
+  "jsMainPath": "index",
+  "uses-permissions": [
+    "plugin.permission.FILE:READ",
+    "plugin.permission.FILE:WRITE"
+  ]
+}

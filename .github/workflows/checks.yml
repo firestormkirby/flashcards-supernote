@@ -1,0 +1,19 @@
+name: Checks
+
+# Logic and UI tests, typecheck and lint. Building the .snplg needs the
+# Android SDK and Ratta's build script, so that stays a local step for now.
+on: [push, pull_request]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
