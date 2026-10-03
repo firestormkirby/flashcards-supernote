@@ -31,6 +31,21 @@ export interface ReviewState {
   lastReview: number;
 }
 
+/**
+ * A picture on one side of a card. `file` is a name inside the plugin's
+ * images folder (never an absolute path, so backups and restores can move
+ * the folder). `crop` is the region to show, in the image's own pixels;
+ * absent means the whole image. Region captures keep the full page image and
+ * a crop rather than cutting a new file, because cutting an image needs
+ * native code and this plugin has none.
+ */
+export interface CardImage {
+  file: string;
+  width: number;
+  height: number;
+  crop?: {x: number; y: number; width: number; height: number};
+}
+
 export interface Card {
   id: string;
   deckId: string;
@@ -38,6 +53,8 @@ export interface Card {
   back: string;
   review: ReviewState;
   starred: boolean;
+  frontImage?: CardImage;
+  backImage?: CardImage;
 }
 
 /** The whole library. Treated as immutable: every change produces a new object. */
@@ -80,8 +97,36 @@ export function studyable(c: DeckCounts): number {
   return c.due + c.new;
 }
 
-export function makeCard(deckId: string, front: string, back: string): Card {
-  return {id: newId(), deckId, front, back, review: NEW_REVIEW, starred: false};
+export function makeCard(
+  deckId: string,
+  front: string,
+  back: string,
+  images: {frontImage?: CardImage; backImage?: CardImage} = {},
+): Card {
+  const card: Card = {
+    id: newId(),
+    deckId,
+    front,
+    back,
+    review: NEW_REVIEW,
+    starred: false,
+  };
+  if (images.frontImage) card.frontImage = images.frontImage;
+  if (images.backImage) card.backImage = images.backImage;
+  return card;
+}
+
+/** What a list shows for a side: its text, or "Picture" for a picture-only side. */
+export function sideLabel(text: string, image?: CardImage): string {
+  const t = text.replace(/\n/g, ' ').trim();
+  if (t) return t;
+  return image ? 'Picture' : '';
+}
+
+export function imageFilesOf(card: Card): string[] {
+  return [card.frontImage?.file, card.backImage?.file].filter(
+    (f): f is string => !!f,
+  );
 }
 
 /** 16 lowercase hex characters, matching the Android app's id shape. */

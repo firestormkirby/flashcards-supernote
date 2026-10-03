@@ -17,6 +17,7 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
 - **Stars, search, shuffle, dark mode, and three text sizes.**
 - **Make card from handwriting.** In a note, or on a PDF you've written on, lasso what you wrote and tap **Make card** in the lasso toolbar. Cards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
 - **Make card from PDFs and ebooks.** In the document reader, select text and tap **Make card** in the selection menu. The text goes on the front (line breaks and hyphenation from the page are tidied up); type the answer, or tap **Swap sides** if you selected the answer.
+- **Picture cards.** Tap **Picture card** in the toolbar (in a PDF, ebook or note), then tap two corners of the part of the page you want, such as a diagram, a figure or a map. It goes on the front of a new card. Or lasso a drawing, sticker or inserted picture and tap **Picture card** in the lasso toolbar to use exactly that. In the editor, **+ Picture** adds a picture to either side, from the page or from an image file (Supernote screenshots are in `SCREENSHOT`). No text selection needed.
 - **Study from anywhere.** The Cards button is in both the note toolbar and the document reader's toolbar.
 - **Write cards on the device**, or write them on a computer and import them.
 - **Example decks included:** Getting Started, World Capitals, Spanish Basics, and Trivia Night.
@@ -127,6 +128,7 @@ src/ui/                  screens
 
 - **Export is a folder of text files instead of a .zip**, since a Supernote has no zip tool. The paths inside are the same. Importing a .zip isn't supported; unzip it on a computer first.
 - **Make card** is new and exists only here: lasso → handwriting recognition → new card in notes and PDFs, and selected PDF/EPUB text → new card in the document reader.
+- **Picture cards** are new. They're saved with the library and kept in backups; the Android app reads such a library but ignores the pictures, and text exports write `[picture]` for a picture-only side.
 - **Full backup and restore** (with progress) is new. A plugin's private data may not survive being reinstalled, so this is the safety net.
 - There is no Wi-Fi sync and no bottom-bar customisation.
 
@@ -137,12 +139,15 @@ Built and tested off-device: all logic and UI flow tests pass, and the screens w
 1. The panel opens from the toolbar button, and **Close ✕** returns to the note.
 2. **Make card** in a note: the lasso button appears, and recognition returns text.
 3. **Make card** in the document reader: the button appears in the text-selection menu and brings the selected text across; and the lasso button works on handwriting over a PDF. Recognition there relies on a page-size fallback (the note-file page-size call may not answer for a PDF), so check that handwriting on a PDF is recognised as well as in a note.
-4. Import can read from `Document`/`INBOX` once file permission is granted, and Export writes to `EXPORT`.
-5. Whether the library survives updating the plugin. If it doesn't, the backup feature covers it, but the README should then say so plainly.
+4. **Picture card**: the page capture works in a PDF, an ebook and a note, and the marked area matches what you tapped. One thing to look at closely: for a reflowable ebook (EPUB), the plugin renders the page through the SDK rather than taking a screenshot, so at a non-default font size the image may not match the screen exactly. sn-clipper uses a native screenshot module for that case; it can be added here if the SDK render turns out to be off.
+5. **Picture card** on the lasso toolbar: lassoed drawings, stickers and pictures come out as an image.
+6. Import can read from `Document`/`INBOX` once file permission is granted, and Export writes to `EXPORT`.
+7. Whether the library survives updating the plugin. If it doesn't, the backup feature covers it, but the README should then say so plainly.
 
 ## Credits
 
 - [**Cards**](https://github.com/mrgrtapk/Cards) by mrgrtapk: the original app, its design, logic, example decks and icon.
 - [Mudita Mindful Design](https://github.com/mudita/MMD), which inspired the original's e-ink design. Neither app is affiliated with or endorsed by Mudita.
 - The [FSRS](https://github.com/open-spaced-repetition) spaced-repetition algorithm.
+- [sn-clipper](https://github.com/vmnair/sn-clipper) by Vinod Nair, whose on-device findings shaped Picture card: which SDK calls render a document page, and that a note page should be rendered by layer to leave out its ruled template. No code was copied.
 - Built with the help of Claude Code.

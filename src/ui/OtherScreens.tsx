@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
 import {FlatList, ScrollView, View} from 'react-native';
 import * as L from '../core/library';
-import {plural} from '../core/model';
+import {plural, sideLabel} from '../core/model';
 import {updateLibrary} from '../storage/libraryStore';
 import {Nav} from './nav';
 import {
@@ -59,7 +59,7 @@ export function StarredScreen({nav}: {nav: Nav}) {
           ItemSeparatorComponent={RowSeparator}
           renderItem={({item}) => (
             <Row
-              title={item.front.replace(/\n/g, ' ')}
+              title={sideLabel(item.front, item.frontImage)}
               subtitle={deckName(item.deckId)}
               onPress={() =>
                 nav.go({name: 'editCard', deckId: item.deckId, cardId: item.id})
@@ -194,8 +194,8 @@ export function SearchScreen({nav}: {nav: Nav}) {
               <View key={c.id}>
                 {i > 0 ? <Divider inset={PAD} /> : null}
                 <Row
-                  title={c.front.replace(/\n/g, ' ')}
-                  subtitle={`${c.back.replace(/\n/g, ' ')} · ${deckName(
+                  title={sideLabel(c.front, c.frontImage)}
+                  subtitle={`${sideLabel(c.back, c.backImage)} · ${deckName(
                     c.deckId,
                   )}`}
                   onPress={() =>

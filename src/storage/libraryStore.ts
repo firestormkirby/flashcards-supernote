@@ -14,7 +14,7 @@
 import RNFS from 'react-native-fs';
 import {NativePluginManager} from 'sn-plugin-lib';
 import {decodeLibrary, encodeLibrary} from '../core/codec';
-import {EMPTY_LIBRARY, LibraryData} from '../core/model';
+import {EMPTY_LIBRARY, LibraryData, imageFilesOf} from '../core/model';
 
 const FILE_NAME = 'library.json';
 
@@ -22,6 +22,7 @@ let data: LibraryData = EMPTY_LIBRARY;
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
 let filePath: string | null = null;
+let dataDir: string | null = null;
 const listeners = new Set<() => void>();
 
 let writing = false;
@@ -89,6 +90,7 @@ async function resolvePath(): Promise<string> {
   } catch (e) {
     console.warn('[cards] could not create data dir', base, e);
   }
+  dataDir = base;
   filePath = `${base}/${FILE_NAME}`;
   return filePath;
 }
@@ -111,6 +113,9 @@ export function loadLibrary(): Promise<void> {
         data = EMPTY_LIBRARY;
       }
       loaded = true;
+      sweepOrphanImages().catch(e =>
+        console.warn('[cards] image sweep failed', e),
+      );
       notify();
     })();
   }
@@ -146,5 +151,50 @@ function save(): void {
 export async function flushLibrary(): Promise<void> {
   for (let i = 0; i < 50 && writing; i++) {
     await new Promise<void>(resolve => setTimeout(resolve, 20));
+  }
+}
+
+// ---------------------------------------------------------------- pictures
+
+const IMAGES = 'images';
+
+/** The folder card pictures live in, inside the plugin's private data folder. Created on demand. */
+export async function imagesDir(): Promise<string> {
+  await resolvePath();
+  const dir = `${dataDir}/${IMAGES}`;
+  try {
+    if (!(await RNFS.exists(dir))) await RNFS.mkdir(dir);
+  } catch (e) {
+    console.warn('[cards] could not create images dir', e);
+  }
+  return dir;
+}
+
+/** A file:// URI for a picture, for <Image>. Valid once the library has loaded. */
+export function imageUri(file: string): string {
+  return `file://${dataDir ?? RNFS.DocumentDirectoryPath}/${IMAGES}/${file}`;
+}
+
+/** A fresh, unused file name in the images folder. */
+export function newImageName(prefix: string, ext = 'png'): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
+}
+
+/**
+ * Removes pictures no card uses any more (a deleted card, a replaced
+ * picture, a capture that was cancelled). Anything newer than ten minutes is
+ * left alone, so a capture still waiting in the crop screen is never swept.
+ */
+async function sweepOrphanImages(): Promise<void> {
+  const dir = await imagesDir();
+  const used = new Set(data.cards.flatMap(imageFilesOf));
+  const cutoff = Date.now() - 10 * 60_000;
+  for (const item of await RNFS.readDir(dir)) {
+    if (!item.isFile() || used.has(item.name)) continue;
+    const mtime = item.mtime ? new Date(item.mtime).getTime() : 0;
+    if (mtime && mtime > cutoff) continue;
+    try {
+      await RNFS.unlink(item.path);
+    } catch (_) {}
   }
 }

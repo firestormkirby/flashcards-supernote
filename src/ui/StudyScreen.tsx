@@ -20,10 +20,11 @@ import {
 } from 'react-native';
 import {Fsrs, Rating, formatInterval} from '../core/fsrs';
 import * as L from '../core/library';
-import {Card, LibraryData, ReviewState, plural} from '../core/model';
+import {Card, LibraryData, ReviewState, plural, sideLabel} from '../core/model';
 import {getLibrary, updateLibrary} from '../storage/libraryStore';
 import {TextSize, getSettings, updateSettings} from '../storage/settingsStore';
 import {CardEditScreen} from './CardEditor';
+import {CardPicture} from './Picture';
 import {StudyTipsDialog} from './Dialogs';
 import {Nav, Route} from './nav';
 import {studyCount} from './shared';
@@ -443,15 +444,26 @@ function CardText({
   revealed: boolean;
 }) {
   const t = useTheme();
+  const window = useWindowDimensions();
+  // Pictures fit the card's width, and each side gets at most ~40% of the height.
+  const picW = window.width - 56;
+  const picH = window.height * 0.4;
   return (
     <View style={{alignItems: 'center'}}>
-      <T
-        size={frontSize}
-        bold
-        center
-        style={{lineHeight: Math.round(frontSize * 1.25)}}>
-        {card.front}
-      </T>
+      {card.frontImage ? (
+        <View style={{marginBottom: card.front ? 18 : 0}}>
+          <CardPicture img={card.frontImage} maxWidth={picW} maxHeight={picH} />
+        </View>
+      ) : null}
+      {card.front ? (
+        <T
+          size={frontSize}
+          bold
+          center
+          style={{lineHeight: Math.round(frontSize * 1.25)}}>
+          {card.front}
+        </T>
+      ) : null}
       {revealed ? (
         <>
           <View
@@ -462,12 +474,23 @@ function CardText({
               marginVertical: 28,
             }}
           />
-          <T
-            size={backSize}
-            center
-            style={{lineHeight: Math.round(backSize * 1.3)}}>
-            {card.back}
-          </T>
+          {card.backImage ? (
+            <View style={{marginBottom: card.back ? 18 : 0}}>
+              <CardPicture
+                img={card.backImage}
+                maxWidth={picW}
+                maxHeight={picH}
+              />
+            </View>
+          ) : null}
+          {card.back ? (
+            <T
+              size={backSize}
+              center
+              style={{lineHeight: Math.round(backSize * 1.3)}}>
+              {card.back}
+            </T>
+          ) : null}
         </>
       ) : null}
     </View>
@@ -618,7 +641,7 @@ function CardList({
           <View key={c.id}>
             {i > 0 ? <Divider inset={PAD} /> : null}
             <Row
-              title={c.front.replace(/\n/g, ' ')}
+              title={sideLabel(c.front, c.frontImage)}
               subtitle={c.id === currentId ? 'Showing now' : null}
               bold={c.id === currentId}
               onPress={() => onPick(c.id)}

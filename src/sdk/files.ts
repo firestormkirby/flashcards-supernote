@@ -158,16 +158,102 @@ export async function listBackups(
     .sort(byName);
 }
 
-export async function writeBackup(json: string): Promise<string> {
-  const stem = `${EXPORT_DIR}/Cards backup ${today()}`;
-  let target = `${stem}.json`;
-  for (let n = 2; await RNFS.exists(target); n++)
-    target = `${stem} (${n}).json`;
+/**
+ * Saves a backup into EXPORT. Without pictures it is one .json file. With
+ * pictures it is a folder holding that .json and an images/ folder beside it,
+ * since a picture can't live inside the JSON. Never overwrites anything.
+ * Returns the path of the .json.
+ */
+export async function writeBackup(
+  json: string,
+  pictures: {dir: string; files: string[]} = {dir: '', files: []},
+): Promise<string> {
   if (!(await RNFS.exists(EXPORT_DIR))) await RNFS.mkdir(EXPORT_DIR);
+  const stem = `Cards backup ${today()}`;
+  if (pictures.files.length === 0) {
+    let target = `${EXPORT_DIR}/${stem}.json`;
+    for (let n = 2; await RNFS.exists(target); n++)
+      target = `${EXPORT_DIR}/${stem} (${n}).json`;
+    await RNFS.writeFile(target, json, 'utf8');
+    return target;
+  }
+  let name = stem;
+  for (let n = 2; await RNFS.exists(`${EXPORT_DIR}/${name}`); n++)
+    name = `${stem} (${n})`;
+  const folder = `${EXPORT_DIR}/${name}`;
+  await RNFS.mkdir(`${folder}/images`);
+  for (const f of pictures.files) {
+    try {
+      await RNFS.copyFile(`${pictures.dir}/${f}`, `${folder}/images/${f}`);
+    } catch (e) {
+      console.warn('[cards] backup could not copy picture', f, e);
+    }
+  }
+  const target = `${folder}/${name}.json`;
   await RNFS.writeFile(target, json, 'utf8');
   return target;
 }
 
+/**
+ * Copies the pictures a restored backup needs from the images/ folder next to
+ * its .json into the plugin's images folder. Returns how many weren't found.
+ */
+export async function restorePictures(
+  backupJsonPath: string,
+  files: string[],
+  intoDir: string,
+): Promise<number> {
+  const from = `${backupJsonPath.slice(
+    0,
+    backupJsonPath.lastIndexOf('/'),
+  )}/images`;
+  let missing = 0;
+  for (const f of files) {
+    const target = `${intoDir}/${f}`;
+    try {
+      if (await RNFS.exists(target)) continue;
+      if (await RNFS.exists(`${from}/${f}`))
+        await RNFS.copyFile(`${from}/${f}`, target);
+      else missing++;
+    } catch (e) {
+      missing++;
+    }
+  }
+  return missing;
+}
+
 export async function readText(path: string): Promise<string> {
   return RNFS.readFile(path, 'utf8');
+}
+
+/** Where pictures usually are: Supernote's own screenshots first. */
+export const IMAGE_ROOTS = [
+  'SCREENSHOT',
+  'Document',
+  'INBOX',
+  'EXPORT',
+  'MyStyle',
+].map(n => `${STORAGE_ROOT}/${n}`);
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp'];
+
+export function isImageName(name: string): boolean {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 && IMAGE_EXTENSIONS.includes(name.slice(dot).toLowerCase());
+}
+
+export async function listImageDir(path: string): Promise<{
+  folders: {name: string; path: string}[];
+  images: {name: string; path: string}[];
+}> {
+  const items = await RNFS.readDir(path);
+  return {
+    folders: items
+      .filter(i => i.isDirectory() && visible(i.name))
+      .map(i => ({name: i.name, path: i.path}))
+      .sort(byName),
+    images: items
+      .filter(i => i.isFile() && visible(i.name) && isImageName(i.name))
+      .map(i => ({name: i.name, path: i.path}))
+      .sort(byName),
+  };
 }

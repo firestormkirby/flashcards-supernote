@@ -30,6 +30,7 @@ import {LibraryScreen, NewItemFlow} from './LibraryScreen';
 import {Nav, Route, Tab} from './nav';
 import {SearchScreen, StarredScreen} from './OtherScreens';
 import {SettingsScreen} from './SettingsScreen';
+import {CropScreen} from './Picture';
 import {StudyScreen} from './StudyScreen';
 import {EmptyState, ThemeProvider, useSettings, useTheme} from './kit';
 
@@ -99,8 +100,18 @@ function Panel() {
           name: 'editCard',
           deckId: null,
           cardId: null,
-          draft: {front: intent.front, back: intent.back, note: intent.note},
+          draft: {
+            front: intent.front,
+            back: intent.back,
+            note: intent.note,
+            frontImage: intent.frontImage,
+          },
         },
+      ]);
+    } else if (intent?.kind === 'cropPicture') {
+      setStack(s => [
+        ...s.filter(r => r.name !== 'study'),
+        {name: 'cropPicture', image: intent.image},
       ]);
     }
   }, []);
@@ -131,7 +142,7 @@ function Panel() {
   }
 
   const route = stack[stack.length - 1];
-  const studying = route?.name === 'study';
+  const studying = route?.name === 'study' || route?.name === 'cropPicture';
 
   let screen: React.ReactNode;
   if (!route) {
@@ -174,6 +185,28 @@ function Panel() {
             folderHint={route.folderHint ?? null}
             draft={route.draft}
             onClose={nav.back}
+          />
+        );
+        break;
+      case 'cropPicture':
+        screen = (
+          <CropScreen
+            img={route.image}
+            title="Picture for a new card"
+            onCancel={nav.back}
+            onDone={img =>
+              nav.replace({
+                name: 'editCard',
+                deckId: null,
+                cardId: null,
+                draft: {
+                  front: '',
+                  back: '',
+                  frontImage: img,
+                  note: 'The picture is on the front. Write the answer on the back, or tap Swap sides to quiz yourself the other way round.',
+                },
+              })
+            }
           />
         );
         break;

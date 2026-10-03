@@ -3,10 +3,13 @@
  *
  *  1. Register the React component (its name must equal PluginConfig.json's pluginKey).
  *  2. Init the SDK straight after.
- *  3. Register three buttons: "Cards" on the toolbar (notes and documents),
- *     "Make card" on the lasso toolbar (handwriting → card, in notes and
- *     documents), and "Make card" on the document reader's text-selection
- *     toolbar (selected PDF/EPUB text → card).
+ *  3. Register the buttons:
+ *     - "Cards" on the toolbar (notes and documents): opens the panel.
+ *     - "Picture card" on the toolbar: a picture of part of the current page.
+ *     - "Make card" on the lasso toolbar: handwriting → text card.
+ *     - "Picture card" on the lasso toolbar: whatever is lassoed → picture card.
+ *     - "Make card" on the document reader's text-selection toolbar:
+ *       selected PDF/EPUB text → card.
  *  4. Start loading the library and settings so the panel opens warm.
  *
  * @format
@@ -18,10 +21,13 @@ import App from './App';
 import {name as appName} from './app.json';
 import {captureDocSelection} from './src/sdk/docSelection';
 import {captureLassoCard} from './src/sdk/lassoCard';
+import {capturePage, captureLassoPicture} from './src/sdk/pictureCapture';
 import {
   BTN_DOC_TEXT_CARD,
   BTN_LASSO_CARD,
+  BTN_LASSO_PICTURE,
   BTN_OPEN,
+  BTN_PAGE_PICTURE,
   installRouter,
   openPanel,
   setPanelIntent,
@@ -53,6 +59,17 @@ PluginManager.registerButton(1, ['NOTE', 'DOC'], {
   showType: 0,
 });
 
+// A picture of part of the page: captures the page you're on (a PDF or ebook
+// page as it is rendered, or a note page's ink without its ruled template),
+// then the panel opens on it so you can mark the region you want. No text
+// selection needed — this is for diagrams, figures, and anything else.
+PluginManager.registerButton(1, ['NOTE', 'DOC'], {
+  id: BTN_PAGE_PICTURE,
+  name: JSON.stringify({en: 'Picture card'}),
+  icon: ICON,
+  showType: 0,
+});
+
 // Lasso toolbar. `editDataTypes` is REQUIRED on type-2 buttons: NOTE builds a
 // HashSet from it with no null check, and a missing value force-closes the
 // whole NOTE app when the lasso menu opens. Values are a 0–5 index, not
@@ -68,6 +85,17 @@ PluginManager.registerButton(2, ['NOTE', 'DOC'], {
   editDataTypes: [0, 3],
 });
 
+// Lasso → picture: exactly what's lassoed (a drawing, a sticker, an inserted
+// picture, handwriting) becomes the card's picture, with nothing to crop.
+// Every lassoable type except links, which have nothing to show.
+PluginManager.registerButton(2, ['NOTE', 'DOC'], {
+  id: BTN_LASSO_PICTURE,
+  name: JSON.stringify({en: 'Picture card'}),
+  icon: ICON,
+  showType: 0,
+  editDataTypes: [0, 1, 2, 3, 5],
+});
+
 // Text-selection toolbar, document reader only: select printed text in a
 // PDF or EPUB and turn it into a card.
 PluginManager.registerButton(3, ['DOC'], {
@@ -78,6 +106,37 @@ PluginManager.registerButton(3, ['DOC'], {
 });
 
 installRouter(event => {
+  if (event && event.id === BTN_PAGE_PICTURE) {
+    capturePage().then(result => {
+      if (result.image) {
+        setPanelIntent({kind: 'cropPicture', image: result.image});
+      } else {
+        setPanelIntent({
+          kind: 'newCardDraft',
+          front: '',
+          back: '',
+          note: result.note,
+        });
+      }
+      openPanel();
+    });
+    return;
+  }
+  if (event && event.id === BTN_LASSO_PICTURE) {
+    captureLassoPicture().then(result => {
+      setPanelIntent({
+        kind: 'newCardDraft',
+        front: '',
+        back: '',
+        frontImage: result.image,
+        note: result.image
+          ? 'The picture is on the front. Write the answer on the back, or tap Swap sides.'
+          : result.note,
+      });
+      openPanel();
+    });
+    return;
+  }
   if (event && event.id === BTN_DOC_TEXT_CARD) {
     captureDocSelection().then(result => {
       setPanelIntent({kind: 'newCardDraft', ...result});

@@ -871,7 +871,14 @@ export function importFiles(
 
 export function deckText(lib: LibraryData, deck: Deck): string {
   return formatDeck(
-    cardsOf(lib, deck.id).map(c => [c.front, c.back] as CardPair),
+    // A text file can't hold a picture, so a picture-only side says so rather than vanishing.
+    cardsOf(lib, deck.id).map(
+      c =>
+        [
+          c.front || (c.frontImage ? '[picture]' : ''),
+          c.back || (c.backImage ? '[picture]' : ''),
+        ] as CardPair,
+    ),
   );
 }
 

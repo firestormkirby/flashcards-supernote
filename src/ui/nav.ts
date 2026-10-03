@@ -1,4 +1,6 @@
 import type {PracticeFilter} from '../core/library';
+import type {CardImage} from '../core/model';
+import type {CardDraft} from './CardEditor';
 
 /** The bottom-bar sections. */
 export type Tab = 'home' | 'starred' | 'search' | 'import' | 'settings';
@@ -27,8 +29,10 @@ export type Route =
       deckId: string | null;
       cardId: string | null;
       folderHint?: string | null;
-      draft?: {front: string; back: string; note?: string};
+      draft?: CardDraft;
     }
+  /** Mark a region of a captured page; the result opens as a new card. */
+  | {name: 'cropPicture'; image: CardImage}
   /** Move decks / folders (all from the same place) into another folder. */
   | {name: 'moveItems'; deckIds: string[]; folderIds: string[]};
 

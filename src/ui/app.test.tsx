@@ -280,3 +280,89 @@ test('a selection from a PDF opens as a draft, and Swap sides flips it', async (
     ).toBe(true),
   );
 });
+
+test('lasso picture: the picture is the front, a typed answer is enough to save', async () => {
+  const m = load();
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: '',
+      back: '',
+      frontImage: {file: 'lasso-1.png', width: 300, height: 150},
+      note: 'The picture is on the front.',
+    });
+  });
+  await scr().findByText('New card');
+  expect(scr().getByLabelText('Picture')).toBeTruthy();
+  const [, back] = scr().getAllByPlaceholderText(/Question or term|Answer/);
+  fireEvent.changeText(back, 'Mitochondria');
+  fireEvent.press(scr().getByText('Choose a deck'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+  fireEvent.press(scr().getByText('Save card'));
+  await waitFor(() => {
+    const card = m.store
+      .getLibrary()
+      .cards.find(c => c.back === 'Mitochondria');
+    expect(card?.front).toBe('');
+    expect(card?.frontImage).toEqual({
+      file: 'lasso-1.png',
+      width: 300,
+      height: 150,
+    });
+  });
+});
+
+test('page picture: mark an area with two taps, it lands on a new card, and shows while studying', async () => {
+  const m = load();
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'cropPicture',
+      image: {file: 'page-1.png', width: 1000, height: 1400},
+    });
+  });
+  await scr().findByText('Picture for a new card');
+  // Give the picture area a size (there is no layout pass under Jest): 500×700 → scale 0.5.
+  fireEvent(scr().getByTestId('crop-area'), 'layout', {
+    nativeEvent: {layout: {width: 516, height: 716}},
+  });
+  const pic = await scr().findByLabelText('Picture to mark');
+  fireEvent.press(pic, {nativeEvent: {locationX: 50, locationY: 100}});
+  expect(scr().getByText('Now tap the opposite corner.')).toBeTruthy();
+  fireEvent.press(pic, {nativeEvent: {locationX: 250, locationY: 200}});
+  fireEvent.press(scr().getByText('Use this area'));
+
+  await scr().findByText('New card');
+  const [, back] = scr().getAllByPlaceholderText(/Question or term|Answer/);
+  fireEvent.changeText(back, 'The Krebs cycle');
+  fireEvent.press(scr().getByText('Choose a deck'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+  fireEvent.press(scr().getByText('Save card'));
+  let saved: any;
+  await waitFor(() => {
+    saved = m.store.getLibrary().cards.find(c => c.back === 'The Krebs cycle');
+    // Taps at (50,100) and (250,200) on a half-size view = (100,200)–(500,400) in the page image.
+    expect(saved?.frontImage).toEqual({
+      file: 'page-1.png',
+      width: 1000,
+      height: 1400,
+      crop: {x: 100, y: 200, width: 400, height: 200},
+    });
+  });
+
+  fireEvent.press(await scr().findByText('Home'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+
+  // Practise the deck, jump to that card, and the picture is what's on screen.
+  fireEvent.press(await scr().findByText(/^Practice · /));
+  fireEvent.press(await scr().findByText('Okay')); // first-session tips
+  fireEvent.press(await scr().findByText('Regular view'));
+  fireEvent.press(scr().getByLabelText('Go to a card'));
+  // A picture-only front is listed as "Picture".
+  fireEvent.press(await scr().findByText('Picture'));
+  expect(await scr().findByLabelText('Picture')).toBeTruthy();
+  expect(scr().queryByText('The Krebs cycle')).toBeNull(); // answer still hidden
+  fireEvent.press(scr().getByText('Show answer'));
+  expect(scr().getByText('The Krebs cycle')).toBeTruthy();
+});

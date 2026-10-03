@@ -24,6 +24,10 @@ Q: How do I make a card from a PDF or ebook?
 A: Select the text and tap Make card in the selection menu.
 It goes on the front; type the answer, or tap Swap sides if you selected the answer.
 
+Q: How do I put a picture on a card?
+A: Tap Picture card in the toolbar and tap two corners of the part of the page you want — a diagram in a PDF, for example.
+Or lasso a drawing or sticker and tap Picture card in the lasso toolbar. In the editor, + Picture adds one to either side.
+
 Q: How do I bring in cards I wrote on a computer?
 A: Copy the files to your Supernote, then open Import and choose the files or their folder.
 Each file becomes a deck; folders become folders.

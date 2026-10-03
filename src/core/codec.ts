@@ -1,4 +1,4 @@
-import {Card, Deck, Folder, LibraryData} from './model';
+import {Card, CardImage, Deck, Folder, LibraryData} from './model';
 
 /**
  * Saved-library format. Byte-for-byte the same shape as the Android app's
@@ -33,6 +33,11 @@ export function encodeLibrary(data: LibraryData): string {
       lapses: c.review.lapses,
       last: c.review.lastReview,
       star: c.starred,
+      // Pictures are an addition of the Supernote edition. The Android app's
+      // decoder ignores keys it doesn't know, so its files still read here and
+      // these files still read there (minus the pictures).
+      ...(c.frontImage ? {fimg: encodeImage(c.frontImage)} : {}),
+      ...(c.backImage ? {bimg: encodeImage(c.backImage)} : {}),
     })),
   });
 }
@@ -67,20 +72,62 @@ export function decodeLibrary(text: string): LibraryData {
     }));
   const cards: Card[] = list(root.cards)
     .filter(c => str(c.id) && str(c.deck))
-    .map(c => ({
-      id: str(c.id)!,
-      deckId: str(c.deck)!,
-      front: str(c.front) ?? '',
-      back: str(c.back) ?? '',
-      review: {
-        due: num(c.due),
-        stability: num(c.s),
-        difficulty: num(c.d),
-        reps: num(c.reps),
-        lapses: num(c.lapses),
-        lastReview: num(c.last),
-      },
-      starred: c.star === true,
-    }));
+    .map(c => {
+      const card: Card = {
+        id: str(c.id)!,
+        deckId: str(c.deck)!,
+        front: str(c.front) ?? '',
+        back: str(c.back) ?? '',
+        review: {
+          due: num(c.due),
+          stability: num(c.s),
+          difficulty: num(c.d),
+          reps: num(c.reps),
+          lapses: num(c.lapses),
+          lastReview: num(c.last),
+        },
+        starred: c.star === true,
+      };
+      const fimg = decodeImage(c.fimg);
+      const bimg = decodeImage(c.bimg);
+      if (fimg) card.frontImage = fimg;
+      if (bimg) card.backImage = bimg;
+      return card;
+    });
   return {folders, decks, cards};
+}
+
+function encodeImage(img: CardImage) {
+  const out: Record<string, unknown> = {
+    file: img.file,
+    w: img.width,
+    h: img.height,
+  };
+  if (img.crop)
+    out.crop = [img.crop.x, img.crop.y, img.crop.width, img.crop.height];
+  return out;
+}
+
+function decodeImage(v: unknown): CardImage | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  const file = str(o.file);
+  // Only a bare file name is accepted: a path could point outside the images folder.
+  if (
+    !file ||
+    file.includes('/') ||
+    file.includes('\\') ||
+    file.startsWith('.')
+  )
+    return undefined;
+  const img: CardImage = {file, width: num(o.w), height: num(o.h)};
+  if (
+    Array.isArray(o.crop) &&
+    o.crop.length === 4 &&
+    o.crop.every(n => typeof n === 'number')
+  ) {
+    const [x, y, width, height] = o.crop as number[];
+    if (width > 0 && height > 0) img.crop = {x, y, width, height};
+  }
+  return img;
 }

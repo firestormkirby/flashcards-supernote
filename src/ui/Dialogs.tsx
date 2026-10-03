@@ -46,6 +46,10 @@ export function WelcomeDialog({onDone}: {onDone: () => void}) {
         rest="Lasso some handwriting in a note or on a PDF, or select text in a PDF or ebook, then tap Make card. It opens as a new card."
       />
       <Tip
+        lead="Picture card"
+        rest="Put a picture on a card: tap Picture card in the toolbar to mark part of the page (a diagram in a PDF, say), or lasso a drawing or sticker and tap Picture card in the lasso toolbar."
+      />
+      <Tip
         lead="Import"
         rest="brings in decks you write on a computer. The Import page shows how."
       />

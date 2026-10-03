@@ -8,7 +8,7 @@ import React, {useState} from 'react';
 import {FlatList, ScrollView, View} from 'react-native';
 import {formatInterval} from '../core/fsrs';
 import * as L from '../core/library';
-import {plural} from '../core/model';
+import {plural, sideLabel} from '../core/model';
 import {updateLibrary} from '../storage/libraryStore';
 import {updateSettings} from '../storage/settingsStore';
 import {PracticeFilterPicker, exportToDevice, studyCount} from './shared';
@@ -306,8 +306,8 @@ export function AllCardsScreen({deckId, nav}: {deckId: string; nav: Nav}) {
           ItemSeparatorComponent={RowSeparator}
           renderItem={({item}) => (
             <Row
-              title={item.front.replace(/\n/g, ' ')}
-              subtitle={item.back.replace(/\n/g, ' ')}
+              title={sideLabel(item.front, item.frontImage)}
+              subtitle={sideLabel(item.back, item.backImage)}
               onPress={() =>
                 nav.go({name: 'editCard', deckId, cardId: item.id})
               }

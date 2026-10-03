@@ -9,11 +9,14 @@
  */
 
 import {PluginManager} from 'sn-plugin-lib';
+import type {CardImage} from '../core/model';
 import {flushLibrary} from '../storage/libraryStore';
 
 export const BTN_OPEN = 100;
 export const BTN_LASSO_CARD = 200;
 export const BTN_DOC_TEXT_CARD = 300;
+export const BTN_PAGE_PICTURE = 101;
+export const BTN_LASSO_PICTURE = 201;
 
 export interface ButtonEvent {
   id: number;
@@ -22,12 +25,17 @@ export interface ButtonEvent {
 }
 
 /** Something the panel should do when it next renders (e.g. open the card editor). */
-export type PanelIntent = {
-  kind: 'newCardDraft';
-  front: string;
-  back: string;
-  note?: string;
-};
+export type PanelIntent =
+  /** Open a new card, pre-filled (from a lasso, a text selection, or a lasso picture). */
+  | {
+      kind: 'newCardDraft';
+      front: string;
+      back: string;
+      note?: string;
+      frontImage?: CardImage;
+    }
+  /** Mark a region of a captured page, then open it as a new card. */
+  | {kind: 'cropPicture'; image: CardImage};
 
 let pendingIntent: PanelIntent | null = null;
 const intentListeners = new Set<() => void>();

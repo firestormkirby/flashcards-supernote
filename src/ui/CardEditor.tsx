@@ -3,9 +3,10 @@
  */
 
 import React, {useState} from 'react';
-import {FlatList, ScrollView, View} from 'react-native';
+import {FlatList, ScrollView, View, useWindowDimensions} from 'react-native';
 import * as L from '../core/library';
-import {Card, Deck, Folder, makeCard, plural} from '../core/model';
+import {Card, CardImage, Deck, Folder, makeCard, plural} from '../core/model';
+import {CardPicture, CropScreen, ImageFilePicker} from './Picture';
 import {updateLibrary} from '../storage/libraryStore';
 import {Nav} from './nav';
 import {
@@ -40,17 +41,29 @@ export function CardEditScreen({
   deckId: string | null;
   cardId: string | null;
   folderHint: string | null;
-  draft?: {front: string; back: string; note?: string};
+  draft?: CardDraft;
   onClose: () => void;
 }) {
   const lib = useLibrary();
   const t = useTheme();
+  const window = useWindowDimensions();
   const existing = cardId ? L.findCard(lib, cardId) : undefined;
   const [front, setFront] = useState(existing?.front ?? draft?.front ?? '');
   const [back, setBack] = useState(existing?.back ?? draft?.back ?? '');
   const [targetDeck, setTargetDeck] = useState<string | null>(
     existing?.deckId ?? deckId ?? null,
   );
+  const [frontImage, setFrontImage] = useState<CardImage | undefined>(
+    existing ? existing.frontImage : draft?.frontImage,
+  );
+  const [backImage, setBackImage] = useState<CardImage | undefined>(
+    existing ? existing.backImage : draft?.backImage,
+  );
+  const [picture, setPicture] = useState<
+    | {side: Side; step: 'file'}
+    | {side: Side; step: 'crop'; img: CardImage}
+    | null
+  >(null);
   const [picking, setPicking] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
@@ -65,7 +78,38 @@ export function CardEditScreen({
   }
 
   const deck = targetDeck ? L.findDeck(lib, targetDeck) : undefined;
-  const canSave = front.trim() !== '' && back.trim() !== '' && !!deck;
+  const canSave =
+    (front.trim() !== '' || !!frontImage) &&
+    (back.trim() !== '' || !!backImage) &&
+    !!deck;
+  const setImage = (side: Side, img: CardImage | undefined) =>
+    side === 'front' ? setFrontImage(img) : setBackImage(img);
+
+  if (picture?.step === 'file') {
+    return (
+      <ImageFilePicker
+        onClose={() => setPicture(null)}
+        onPicked={img => setPicture({side: picture.side, step: 'crop', img})}
+      />
+    );
+  }
+  if (picture?.step === 'crop') {
+    return (
+      <CropScreen
+        img={picture.img}
+        title={
+          picture.side === 'front'
+            ? 'Picture for the front'
+            : 'Picture for the back'
+        }
+        onCancel={() => setPicture(null)}
+        onDone={img => {
+          setImage(picture.side, img);
+          setPicture(null);
+        }}
+      />
+    );
+  }
 
   if (picking) {
     return (
@@ -88,7 +132,11 @@ export function CardEditScreen({
     const b = back.trim();
     if (existing) {
       updateLibrary(l => {
-        const edited: Card = {...existing, front: f, back: b};
+        const edited: Card = withImages(
+          {...existing, front: f, back: b},
+          frontImage,
+          backImage,
+        );
         const next = L.upsertCard(l, edited);
         return existing.deckId !== deck.id
           ? L.moveCard(next, existing.id, deck.id)
@@ -96,10 +144,14 @@ export function CardEditScreen({
       });
       onClose();
     } else {
-      updateLibrary(l => L.upsertCard(l, makeCard(deck.id, f, b)));
+      updateLibrary(l =>
+        L.upsertCard(l, makeCard(deck.id, f, b, {frontImage, backImage})),
+      );
       if (another) {
         setFront('');
         setBack('');
+        setFrontImage(undefined);
+        setBackImage(undefined);
         setSavedCount(n => n + 1);
       } else {
         onClose();
@@ -167,20 +219,32 @@ export function CardEditScreen({
           onChangeText={setFront}
           multiline
           placeholder="Question or term"
-          autoFocus={!existing && !draft?.front}
+          autoFocus={!existing && !draft?.front && !draft?.frontImage}
+        />
+        <PictureSlot
+          img={frontImage}
+          maxWidth={window.width - PAD * 2}
+          onAdd={() => setPicture({side: 'front', step: 'file'})}
+          onReCrop={() =>
+            frontImage &&
+            setPicture({side: 'front', step: 'crop', img: frontImage})
+          }
+          onRemove={() => setFrontImage(undefined)}
         />
         <View
           style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 10}}>
           <T size={14} muted style={{flex: 1}}>
             Back
           </T>
-          {front !== '' || back !== '' ? (
+          {front !== '' || back !== '' || frontImage || backImage ? (
             <BarButton
               label="Swap sides"
               accessibilityLabel="Swap front and back"
               onPress={() => {
                 setFront(back);
                 setBack(front);
+                setFrontImage(backImage);
+                setBackImage(frontImage);
               }}
             />
           ) : null}
@@ -191,7 +255,19 @@ export function CardEditScreen({
           onChangeText={setBack}
           multiline
           placeholder="Answer"
-          autoFocus={!existing && !!draft?.front && !draft.back}
+          autoFocus={
+            !existing && !!(draft?.front || draft?.frontImage) && !draft?.back
+          }
+        />
+        <PictureSlot
+          img={backImage}
+          maxWidth={window.width - PAD * 2}
+          onAdd={() => setPicture({side: 'back', step: 'file'})}
+          onReCrop={() =>
+            backImage &&
+            setPicture({side: 'back', step: 'crop', img: backImage})
+          }
+          onRemove={() => setBackImage(undefined)}
         />
         <Spacer h={24} />
         <Button
@@ -238,6 +314,71 @@ export function CardEditScreen({
         />
       ) : null}
     </Screen>
+  );
+}
+
+type Side = 'front' | 'back';
+
+export interface CardDraft {
+  front: string;
+  back: string;
+  note?: string;
+  frontImage?: CardImage;
+  backImage?: CardImage;
+}
+
+/** The card with its pictures set (or removed), without leaving undefined keys behind. */
+function withImages(
+  card: Card,
+  frontImage?: CardImage,
+  backImage?: CardImage,
+): Card {
+  const out: Card = {...card};
+  delete out.frontImage;
+  delete out.backImage;
+  if (frontImage) out.frontImage = frontImage;
+  if (backImage) out.backImage = backImage;
+  return out;
+}
+
+/** Under each side: the picture with Change area / Remove, or a way to add one. */
+function PictureSlot({
+  img,
+  maxWidth,
+  onAdd,
+  onReCrop,
+  onRemove,
+}: {
+  img?: CardImage;
+  maxWidth: number;
+  onAdd: () => void;
+  onReCrop: () => void;
+  onRemove: () => void;
+}) {
+  if (!img) {
+    return (
+      <View style={{flexDirection: 'row', marginTop: 8}}>
+        <BarButton
+          label="+ Picture"
+          accessibilityLabel="Add a picture"
+          onPress={onAdd}
+        />
+      </View>
+    );
+  }
+  return (
+    <View style={{marginTop: 10, alignItems: 'flex-start'}}>
+      <CardPicture img={img} maxWidth={maxWidth} maxHeight={240} />
+      <View style={{flexDirection: 'row', marginTop: 6}}>
+        <BarButton label="Change area" onPress={onReCrop} />
+        <BarButton label="Replace" onPress={onAdd} />
+        <BarButton
+          label="Remove"
+          accessibilityLabel="Remove picture"
+          onPress={onRemove}
+        />
+      </View>
+    </View>
   );
 }
 

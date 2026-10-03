@@ -495,3 +495,38 @@ test('bundled examples match assets/examples', () => {
   expect(lib.folders.map(x => x.name)).toEqual(['Examples']);
   expect(lib.decks).toHaveLength(4);
 });
+
+test('pictures: saved and read back, and unsafe file names refused', () => {
+  const card = {
+    id: 'c',
+    deckId: 'd',
+    front: '',
+    back: 'Mitochondria',
+    review: {
+      due: 0,
+      stability: 0,
+      difficulty: 0,
+      reps: 0,
+      lapses: 0,
+      lastReview: 0,
+    },
+    starred: false,
+    frontImage: {
+      file: 'page-1.png',
+      width: 1920,
+      height: 2560,
+      crop: {x: 10, y: 20, width: 300, height: 200},
+    },
+    backImage: {file: 'lasso-2.png', width: 80, height: 60},
+  };
+  const lib: LibraryData = {
+    folders: [],
+    decks: [{id: 'd', folderId: null, name: 'Bio', position: 0}],
+    cards: [card],
+  };
+  expect(decodeLibrary(encodeLibrary(lib))).toEqual(lib);
+  const bad = encodeLibrary(lib).replace('page-1.png', '../../etc/passwd');
+  expect(decodeLibrary(bad).cards[0].frontImage).toBeUndefined();
+  // A text export can't hold a picture, so it says so rather than leaving the side blank.
+  expect(L.deckText(lib, lib.decks[0])).toBe('[picture] :: Mitochondria\n');
+});

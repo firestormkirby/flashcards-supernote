@@ -11,7 +11,7 @@ import React, {useEffect, useState} from 'react';
 import {ScrollView, View} from 'react-native';
 import {decodeLibrary, encodeLibrary} from '../core/codec';
 import * as L from '../core/library';
-import {plural} from '../core/model';
+import {imageFilesOf, plural} from '../core/model';
 import {
   BROWSE_ROOTS,
   DirListing,
@@ -23,10 +23,12 @@ import {
   readDeckFiles,
   readDeckFolder,
   readText,
+  restorePictures,
   writeBackup,
 } from '../sdk/files';
 import {
   getLibrary,
+  imagesDir,
   updateLibrary,
   updateLibraryAndGet,
 } from '../storage/libraryStore';
@@ -97,13 +99,25 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
       return;
     }
     try {
-      const path = await writeBackup(encodeLibrary(getLibrary()));
+      const current = getLibrary();
+      const files = [...new Set(current.cards.flatMap(imageFilesOf))];
+      const path = await writeBackup(encodeLibrary(current), {
+        dir: await imagesDir(),
+        files,
+      });
       updateSettings(s => ({...s, lastBackupAt: Date.now()}));
       setMessage({
         title: 'Backup saved',
         message: `Saved to ${displayPath(
           path,
-        )}. It holds every card with its study progress and stars. Restore it from this page if you ever need to.`,
+        )}. It holds every card with its study progress and stars${
+          files.length
+            ? `, and its ${files.length} ${plural(
+                files.length,
+                'picture',
+              )} in the images folder beside it`
+            : ''
+        }. Restore it from this page if you ever need to.`,
       });
     } catch (e) {
       setMessage({
@@ -263,13 +277,24 @@ function Browser({
     setBusy(true);
     try {
       const lib = decodeLibrary(await readText(file));
+      const pictures = [...new Set(lib.cards.flatMap(imageFilesOf))];
+      const missing = await restorePictures(file, pictures, await imagesDir());
       updateLibrary(() => lib);
       setReport({
         title: 'Backup restored',
         summary: `${lib.decks.length} ${plural(lib.decks.length, 'deck')}, ${
           lib.cards.length
         } ${plural(lib.cards.length, 'card')}.`,
-        warnings: [],
+        warnings: missing
+          ? [
+              `${missing} ${plural(
+                missing,
+                'picture',
+              )} weren't in the images folder next to the backup, so ${
+                missing === 1 ? 'that card shows' : 'those cards show'
+              } a blank space. Keep the backup's folder together when you copy it.`,
+            ]
+          : [],
       });
     } catch (e) {
       setReport({
@@ -514,6 +539,14 @@ function HowToWrite({onClose}: {onClose: () => void}) {
         In a note, or on a PDF you've written on, lasso what you wrote and tap
         Make card in the lasso toolbar. Write “front :: back” to fill in both
         sides at once.
+      </T>
+      <SectionTitle>Pictures</SectionTitle>
+      <T size={16}>
+        Tap Picture card in the toolbar, in a PDF, an ebook or a note, then tap
+        two corners of the part you want, such as a diagram or a figure. Or
+        lasso a drawing, sticker or picture in a note and tap Picture card in
+        the lasso toolbar. In the card editor, + Picture adds a picture to
+        either side, including Supernote screenshots from the SCREENSHOT folder.
       </T>
       <SectionTitle>From a PDF or ebook</SectionTitle>
       <T size={16}>
