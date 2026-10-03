@@ -17,8 +17,12 @@ Right side: next card.
 Left side: previous card.
 
 Q: How do I turn my handwriting into a card?
-A: In any note, lasso what you wrote and tap Make card in the lasso toolbar.
+A: In a note, or on a PDF, lasso what you wrote and tap Make card in the lasso toolbar.
 Write “front :: back” to fill in both sides at once.
+
+Q: How do I make a card from a PDF or ebook?
+A: Select the text and tap Make card in the selection menu.
+It goes on the front; type the answer, or tap Swap sides if you selected the answer.
 
 Q: How do I bring in cards I wrote on a computer?
 A: Copy the files to your Supernote, then open Import and choose the files or their folder.

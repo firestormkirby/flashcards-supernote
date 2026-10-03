@@ -70,29 +70,43 @@ test('first launch seeds the examples and closes back to the note', async () => 
   expect(scr().getByText('Examples')).toBeTruthy();
   expect(m.store.getLibrary().decks).toHaveLength(4);
   fireEvent.press(scr().getByText('Close ✕'));
-  await waitFor(() => expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled());
+  await waitFor(() =>
+    expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled(),
+  );
   // The library was written to the plugin's private folder, never to shared storage.
   const written = m.RNFS.writeFile.mock.calls.map((c: any[]) => c[0]);
   expect(written.length).toBeGreaterThan(0);
-  expect(written.every((p: string) => p.startsWith('/plugin/data/'))).toBe(true);
+  expect(written.every((p: string) => p.startsWith('/plugin/data/'))).toBe(
+    true,
+  );
 });
 
 test('full-screen study: tap middle to reveal, right side rates Good, left side undoes', async () => {
   const m = load();
   await openApp(m);
   fireEvent.press(scr().getByText('Trivia Night'));
-  const total = m.store.getLibrary().cards.filter(c => c.deckId === m.store.getLibrary().decks.find(d => d.name === 'Trivia Night')!.id).length;
+  const total = m.store
+    .getLibrary()
+    .cards.filter(
+      c =>
+        c.deckId ===
+        m.store.getLibrary().decks.find(d => d.name === 'Trivia Night')!.id,
+    ).length;
   fireEvent.press(scr().getByText(`Study · ${total}`));
   fireEvent.press(await scr().findByText('Okay')); // first-session tips
   await scr().findByText(`${total} left`);
 
-  const reviewed = () => m.store.getLibrary().cards.filter(c => c.review.reps > 0);
-  const zone = () => scr().getByText(`${total - reviewed().length} left`).parent!;
+  const reviewed = () =>
+    m.store.getLibrary().cards.filter(c => c.review.reps > 0);
+  const zone = () =>
+    scr().getByText(`${total - reviewed().length} left`).parent!;
   expect(zone()).toBeTruthy();
 
   // The card area is the first Pressable under the full-screen view; press it at x positions.
   const press = (x: number) => {
-    const target = scr().UNSAFE_root.findAll((n: any) => n.props?.onPress && n.props?.style?.flex === 1)[0];
+    const target = scr().UNSAFE_root.findAll(
+      (n: any) => n.props?.onPress && n.props?.style?.flex === 1,
+    )[0];
     fireEvent(target, 'press', {nativeEvent: {pageX: x}});
   };
   press(375); // middle of the 750-wide test window
@@ -132,38 +146,72 @@ test('+ New › Card: choose a deck, write, save', async () => {
   fireEvent.press(await scr().findByText('Card'));
   fireEvent.press(await scr().findByText('Choose a deck'));
   fireEvent.press(await scr().findByText('Trivia Night'));
-  const [front, back] = scr().getAllByPlaceholderText(/Question or term|Answer/);
+  const [front, back] = scr().getAllByPlaceholderText(
+    /Question or term|Answer/,
+  );
   fireEvent.changeText(front, 'Capital of Peru');
   fireEvent.changeText(back, 'Lima');
   fireEvent.press(scr().getByText('Save card'));
-  await waitFor(() => expect(m.store.getLibrary().cards.some(c => c.front === 'Capital of Peru' && c.back === 'Lima')).toBe(true));
+  await waitFor(() =>
+    expect(
+      m.store
+        .getLibrary()
+        .cards.some(c => c.front === 'Capital of Peru' && c.back === 'Lima'),
+    ).toBe(true),
+  );
 });
 
 test('"Make card" from a lasso opens the editor with the recognised text', async () => {
   const m = load();
   await openApp(m);
   act(() => {
-    m.router.setPanelIntent({kind: 'newCardFromLasso', front: 'Mitochondria', back: 'Powerhouse of the cell', note: 'Check the recognised text before saving.'});
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: 'Mitochondria',
+      back: 'Powerhouse of the cell',
+      note: 'Check the recognised text before saving.',
+    });
   });
   await scr().findByText('New card');
   expect(scr().getByDisplayValue('Mitochondria')).toBeTruthy();
   expect(scr().getByDisplayValue('Powerhouse of the cell')).toBeTruthy();
-  expect(scr().getByText('Check the recognised text before saving.')).toBeTruthy();
+  expect(
+    scr().getByText('Check the recognised text before saving.'),
+  ).toBeTruthy();
 });
 
 test('import a folder from the device, then export it', async () => {
   const m = load();
-  const dir = (name: string, path: string) => ({name, path, isDirectory: () => true, isFile: () => false, size: 0});
-  const file = (name: string, path: string) => ({name, path, isDirectory: () => false, isFile: () => true, size: 10});
+  const dir = (name: string, path: string) => ({
+    name,
+    path,
+    isDirectory: () => true,
+    isFile: () => false,
+    size: 0,
+  });
+  const file = (name: string, path: string) => ({
+    name,
+    path,
+    isDirectory: () => false,
+    isFile: () => true,
+    size: 10,
+  });
   m.RNFS.readDir.mockImplementation(async (p: string) => {
-    if (p === '/storage/emulated/0/Document') return [dir('Biology', '/storage/emulated/0/Document/Biology')];
+    if (p === '/storage/emulated/0/Document')
+      return [dir('Biology', '/storage/emulated/0/Document/Biology')];
     if (p === '/storage/emulated/0/Document/Biology')
-      return [file('Cells.txt', '/d/Cells.txt'), file('notes.pdf', '/d/notes.pdf'), dir('Plants', '/d/Plants')];
+      return [
+        file('Cells.txt', '/d/Cells.txt'),
+        file('notes.pdf', '/d/notes.pdf'),
+        dir('Plants', '/d/Plants'),
+      ];
     if (p === '/d/Plants') return [file('Leaves.csv', '/d/Plants/Leaves.csv')];
     return [];
   });
   m.RNFS.readFile.mockImplementation(async (p: string) =>
-    p.endsWith('Cells.txt') ? 'Nucleus :: Holds DNA\nRibosome :: Makes protein\nbad line' : 'Front,Back\nchlorophyll,green pigment',
+    p.endsWith('Cells.txt')
+      ? 'Nucleus :: Holds DNA\nRibosome :: Makes protein\nbad line'
+      : 'Front,Back\nchlorophyll,green pigment',
   );
   await openApp(m);
   fireEvent.press(scr().getByText('Import'));
@@ -187,6 +235,48 @@ test('import a folder from the device, then export it', async () => {
   fireEvent.press(scr().getByText('✕'));
   fireEvent.press(await scr().findByText(/^Export all cards/));
   await scr().findByText('Exported');
-  const paths = m.RNFS.writeFile.mock.calls.map((c: any[]) => c[0]).filter((p: string) => p.startsWith('/storage'));
-  expect(paths.some((p: string) => /EXPORT\/Cards \d{4}-\d\d-\d\d\/Plants\/Leaves\.txt$/.test(p))).toBe(true);
+  const paths = m.RNFS.writeFile.mock.calls
+    .map((c: any[]) => c[0])
+    .filter((p: string) => p.startsWith('/storage'));
+  expect(
+    paths.some((p: string) =>
+      /EXPORT\/Cards \d{4}-\d\d-\d\d\/Plants\/Leaves\.txt$/.test(p),
+    ),
+  ).toBe(true);
+});
+
+test('a selection from a PDF opens as a draft, and Swap sides flips it', async () => {
+  const m = load();
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: 'the powerhouse of the cell',
+      back: '',
+      note: 'Made from the selected text.',
+    });
+  });
+  await scr().findByText('New card');
+  fireEvent.press(scr().getByText('Swap sides'));
+  expect(scr().getByDisplayValue('the powerhouse of the cell')).toBeTruthy();
+  const [front, back] = scr().getAllByPlaceholderText(
+    /Question or term|Answer/,
+  );
+  expect(front.props.value).toBe('');
+  expect(back.props.value).toBe('the powerhouse of the cell');
+  fireEvent.changeText(front, 'Mitochondria');
+  fireEvent.press(scr().getByText('Choose a deck'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+  fireEvent.press(scr().getByText('Save card'));
+  await waitFor(() =>
+    expect(
+      m.store
+        .getLibrary()
+        .cards.some(
+          c =>
+            c.front === 'Mitochondria' &&
+            c.back === 'the powerhouse of the cell',
+        ),
+    ).toBe(true),
+  );
 });

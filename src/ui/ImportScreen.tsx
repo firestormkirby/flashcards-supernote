@@ -511,8 +511,16 @@ function HowToWrite({onClose}: {onClose: () => void}) {
       </T>
       <SectionTitle>From your handwriting</SectionTitle>
       <T size={16}>
-        In any note, lasso what you wrote and tap Make card in the lasso
-        toolbar. Write “front :: back” to fill in both sides at once.
+        In a note, or on a PDF you've written on, lasso what you wrote and tap
+        Make card in the lasso toolbar. Write “front :: back” to fill in both
+        sides at once.
+      </T>
+      <SectionTitle>From a PDF or ebook</SectionTitle>
+      <T size={16}>
+        Select text in the document and tap Make card in the selection menu. The
+        text goes on the front; type the answer, or tap Swap sides if you
+        selected the answer. You can also open Cards from the reader's toolbar
+        to study without leaving the book.
       </T>
     </Screen>
   );

@@ -92,7 +92,7 @@ function Panel() {
 
   const applyIntent = useCallback(() => {
     const intent = consumePanelIntent();
-    if (intent?.kind === 'newCardFromLasso') {
+    if (intent?.kind === 'newCardDraft') {
       setStack(s => [
         ...s.filter(r => r.name !== 'study'),
         {

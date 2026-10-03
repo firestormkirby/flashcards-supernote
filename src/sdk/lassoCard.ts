@@ -16,7 +16,8 @@
  *    user, which is the common case: lasso the question, type the answer.
  */
 
-import {PluginCommAPI, PluginFileAPI} from 'sn-plugin-lib';
+import {Dimensions, PixelRatio} from 'react-native';
+import {PluginCommAPI, PluginFileAPI, PluginManager} from 'sn-plugin-lib';
 import {parseDeck} from '../core/deckParser';
 
 export interface LassoCardResult {
@@ -41,6 +42,40 @@ export function splitRecognisedText(text: string): {
     return {front: parsed.cards[0][0], back: parsed.cards[0][1]};
   }
   return {front: clean, back: ''};
+}
+
+/** Page size in pixels for each device, portrait. 5 = Manta (A5X2); everything else is 1404×1872. */
+const MANTA = {width: 1920, height: 2560};
+const A5X = {width: 1404, height: 1872};
+
+/**
+ * The full page size recognizeElements wants. Asked of the file first; a PDF
+ * or EPUB open in the document reader may not answer a note-file query, so
+ * then it falls back to the device's own page size, turned to match the
+ * current orientation.
+ */
+export async function pageSizeFor(
+  filePath: string,
+  page: number,
+): Promise<{width: number; height: number} | null> {
+  try {
+    const res = (await PluginFileAPI.getPageSize(filePath, page)) as Res;
+    if (res?.success && res.result?.width > 0 && res.result?.height > 0) {
+      return {width: res.result.width, height: res.result.height};
+    }
+  } catch (e) {
+    console.log('[cards] getPageSize failed, using the device size', e);
+  }
+  let base = A5X;
+  try {
+    base = (await PluginManager.getDeviceType()) === 5 ? MANTA : A5X;
+  } catch (_) {
+    // Guess from the screen instead.
+    const s = Dimensions.get('screen');
+    if (Math.max(s.width, s.height) * PixelRatio.get() > 2200) base = MANTA;
+  }
+  const s = Dimensions.get('screen');
+  return s.width > s.height ? {width: base.height, height: base.width} : base;
 }
 
 export async function captureLassoCard(): Promise<LassoCardResult> {
@@ -74,18 +109,14 @@ export async function captureLassoCard(): Promise<LassoCardResult> {
       };
     }
     // recognizeElements needs the FULL page size, not the lasso rect.
-    const sizeRes = (await PluginFileAPI.getPageSize(
-      fileRes.result,
-      pageRes.result,
-    )) as Res;
-    if (!sizeRes?.success || !sizeRes.result) {
+    const size = await pageSizeFor(fileRes.result, pageRes.result);
+    if (!size) {
       return {
         front: '',
         back: '',
         note: "Couldn't read the page size, so the writing wasn't recognised.",
       };
     }
-    const size = {width: sizeRes.result.width, height: sizeRes.result.height};
     const recRes = (await PluginCommAPI.recognizeElements(
       elements,
       size,

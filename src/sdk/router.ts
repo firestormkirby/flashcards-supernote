@@ -13,6 +13,7 @@ import {flushLibrary} from '../storage/libraryStore';
 
 export const BTN_OPEN = 100;
 export const BTN_LASSO_CARD = 200;
+export const BTN_DOC_TEXT_CARD = 300;
 
 export interface ButtonEvent {
   id: number;
@@ -22,7 +23,7 @@ export interface ButtonEvent {
 
 /** Something the panel should do when it next renders (e.g. open the card editor). */
 export type PanelIntent = {
-  kind: 'newCardFromLasso';
+  kind: 'newCardDraft';
   front: string;
   back: string;
   note?: string;

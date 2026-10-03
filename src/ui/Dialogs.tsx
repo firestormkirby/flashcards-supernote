@@ -43,7 +43,7 @@ export function WelcomeDialog({onDone}: {onDone: () => void}) {
       />
       <Tip
         lead="Make card"
-        rest="In any note, lasso some handwriting and tap Make card in the lasso toolbar. Cards reads the writing and opens it as a new card."
+        rest="Lasso some handwriting in a note or on a PDF, or select text in a PDF or ebook, then tap Make card. It opens as a new card."
       />
       <Tip
         lead="Import"

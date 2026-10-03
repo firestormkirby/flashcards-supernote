@@ -15,7 +15,9 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
 - **Full-screen studying.** Only the card is on screen. Tap the middle to see the answer, the right side for the next card, the left side for the previous one.
 - **Choose which cards:** all, or any mix of due, new and starred.
 - **Stars, search, shuffle, dark mode, and three text sizes.**
-- **Make card from handwriting.** In any note, lasso what you wrote and tap **Make card** in the lasso toolbar. Cards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
+- **Make card from handwriting.** In a note, or on a PDF you've written on, lasso what you wrote and tap **Make card** in the lasso toolbar. Cards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
+- **Make card from PDFs and ebooks.** In the document reader, select text and tap **Make card** in the selection menu. The text goes on the front (line breaks and hyphenation from the page are tidied up); type the answer, or tap **Swap sides** if you selected the answer.
+- **Study from anywhere.** The Cards button is in both the note toolbar and the document reader's toolbar.
 - **Write cards on the device**, or write them on a computer and import them.
 - **Example decks included:** Getting Started, World Capitals, Spanish Basics, and Trivia Night.
 
@@ -124,7 +126,7 @@ src/ui/                  screens
 ## Differences from the Android app
 
 - **Export is a folder of text files instead of a .zip**, since a Supernote has no zip tool. The paths inside are the same. Importing a .zip isn't supported; unzip it on a computer first.
-- **Make card** (lasso → handwriting recognition → new card) is new, and exists only here.
+- **Make card** is new and exists only here: lasso → handwriting recognition → new card in notes and PDFs, and selected PDF/EPUB text → new card in the document reader.
 - **Full backup and restore** (with progress) is new. A plugin's private data may not survive being reinstalled, so this is the safety net.
 - There is no Wi-Fi sync and no bottom-bar customisation.
 
@@ -133,9 +135,10 @@ src/ui/                  screens
 Built and tested off-device: all logic and UI flow tests pass, and the screens were checked in a browser at Supernote proportions. **It has not been run on a Supernote yet.** These are the things to confirm on a device first:
 
 1. The panel opens from the toolbar button, and **Close ✕** returns to the note.
-2. **Make card**: the lasso button appears, and recognition returns text.
-3. Import can read from `Document`/`INBOX` once file permission is granted, and Export writes to `EXPORT`.
-4. Whether the library survives updating the plugin. If it doesn't, the backup feature covers it, but the README should then say so plainly.
+2. **Make card** in a note: the lasso button appears, and recognition returns text.
+3. **Make card** in the document reader: the button appears in the text-selection menu and brings the selected text across; and the lasso button works on handwriting over a PDF. Recognition there relies on a page-size fallback (the note-file page-size call may not answer for a PDF), so check that handwriting on a PDF is recognised as well as in a note.
+4. Import can read from `Document`/`INBOX` once file permission is granted, and Export writes to `EXPORT`.
+5. Whether the library survives updating the plugin. If it doesn't, the backup feature covers it, but the README should then say so plainly.
 
 ## Credits
 

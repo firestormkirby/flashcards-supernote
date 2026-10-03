@@ -169,10 +169,22 @@ export function CardEditScreen({
           placeholder="Question or term"
           autoFocus={!existing && !draft?.front}
         />
-        <Spacer h={16} />
-        <T size={14} muted>
-          Back
-        </T>
+        <View
+          style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 10}}>
+          <T size={14} muted style={{flex: 1}}>
+            Back
+          </T>
+          {front !== '' || back !== '' ? (
+            <BarButton
+              label="Swap sides"
+              accessibilityLabel="Swap front and back"
+              onPress={() => {
+                setFront(back);
+                setBack(front);
+              }}
+            />
+          ) : null}
+        </View>
         <Spacer h={6} />
         <Input
           value={back}
