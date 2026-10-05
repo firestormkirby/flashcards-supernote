@@ -141,15 +141,21 @@ src/ui/                  screens
 
 ## Status
 
-Built and tested off-device: all logic and UI flow tests pass, and the screens were checked in a browser at Supernote proportions. **It has not been run on a Supernote yet.** These are the things to confirm on a device first:
+**Version 1.0.0.** All logic and UI flow tests pass, and it has been tested on a Supernote Manta:
 
-1. The panel opens from the toolbar button, and **Close ✕** returns to the note.
-2. **Make card** in a note: the lasso button appears, and recognition returns text.
-3. **Make card** in the document reader: the button appears in the text-selection menu and brings the selected text across; and the lasso button works on handwriting over a PDF. Recognition there relies on a page-size fallback (the note-file page-size call may not answer for a PDF), so check that handwriting on a PDF is recognised as well as in a note.
-4. **Picture card**: the page capture works in a PDF, an ebook and a note, and the marked area matches what you tapped. One thing to look at closely: for a reflowable ebook (EPUB), the plugin renders the page through the SDK rather than taking a screenshot, so at a non-default font size the image may not match the screen exactly. sn-clipper uses a native screenshot module for that case; it can be added here if the SDK render turns out to be off.
-5. **Picture card** on the lasso toolbar: lassoed drawings, stickers and pictures come out as an image.
-6. Import can read from `Document`/`INBOX` once file permission is granted, and Export writes to `EXPORT`.
-7. Whether the library survives updating the plugin. If it doesn't, the backup feature covers it, but the README should then say so plainly.
+- ✅ The panel opens from the toolbar and **Close ✕** returns to the note.
+- ✅ **Make card** from handwriting, in a note and on a PDF.
+- ✅ **Make card** from selected PDF text.
+- ✅ **Picture card** from the toolbar, for the front and (through **+ Picture › From a page**) for the back.
+- ✅ Making a deck from the deck chooser, and new cards defaulting to the last-used deck.
+- ✅ The library and settings survive updating the plugin (installing a new version over the old one).
+
+Not yet confirmed on a device, so reports are welcome:
+
+- **Picture card** in a reflowable ebook (EPUB) at a non-default font size. The plugin renders the page through the SDK rather than taking a screenshot, so the image may not match the screen exactly. sn-clipper uses a native screenshot module for that case; it can be added here if needed.
+- **Picture card** on the lasso toolbar (lassoed drawings, stickers and pictures).
+- Import from `Document`/`INBOX`, Export to `EXPORT`, and the Anki import and export, on the device itself (they are covered by the off-device tests).
+- The Nomad.
 
 ## Credits
 
