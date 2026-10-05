@@ -137,6 +137,26 @@ export async function writeExport(
   return dir;
 }
 
+/**
+ * Writes one file into EXPORT as "<base> <date>.<ext>" (with a counter if
+ * that exists already). Never overwrites anything. Returns the file's path.
+ */
+export async function writeExportFile(
+  base: string,
+  ext: string,
+  content: string,
+): Promise<string> {
+  if (!(await RNFS.exists(EXPORT_DIR))) await RNFS.mkdir(EXPORT_DIR);
+  const stem = `${EXPORT_DIR}/${
+    base.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Flashcards'
+  } ${today()}`;
+  let target = `${stem}.${ext}`;
+  for (let n = 2; await RNFS.exists(target); n++)
+    target = `${stem} (${n}).${ext}`;
+  await RNFS.writeFile(target, content, 'utf8');
+  return target;
+}
+
 /** "/storage/emulated/0/EXPORT/Flashcards" → "EXPORT/Flashcards", for messages. */
 export function displayPath(path: string): string {
   return path.startsWith(STORAGE_ROOT + '/')

@@ -9,6 +9,7 @@
 
 import React, {useEffect, useState} from 'react';
 import {ScrollView, View} from 'react-native';
+import {ankiExport} from '../core/anki';
 import {decodeLibrary, encodeLibrary} from '../core/codec';
 import * as L from '../core/library';
 import {imageFilesOf, plural} from '../core/model';
@@ -25,6 +26,7 @@ import {
   readText,
   restorePictures,
   writeBackup,
+  writeExportFile,
 } from '../sdk/files';
 import {
   getLibrary,
@@ -89,6 +91,53 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
     setMessage(res);
   };
 
+  const exportAnki = async () => {
+    const {text, exported, skipped} = ankiExport(getLibrary());
+    if (exported === 0) {
+      setMessage({
+        title: 'Nothing to export',
+        message:
+          'Anki needs text on both sides of a card, and no card has that yet.',
+      });
+      return;
+    }
+    if (!(await ensureWritePermission())) {
+      setMessage({
+        title: "Couldn't export",
+        message:
+          'Flashcards needs permission to save files. Try again and choose Allow.',
+      });
+      return;
+    }
+    try {
+      const path = await writeExportFile('Flashcards for Anki', 'txt', text);
+      setMessage({
+        title: 'Exported for Anki',
+        message: `${exported} ${plural(
+          exported,
+          'card',
+        )} saved to ${displayPath(
+          path,
+        )}. In Anki on a computer: File › Import, choose this file, and check that the fields map to Front and Back. Importing a newer export later updates these cards instead of adding them again.${
+          skipped > 0
+            ? ` ${skipped} ${plural(
+                skipped,
+                'card',
+              )} with a picture-only side ${
+                skipped === 1 ? 'was' : 'were'
+              } left out: the file can only hold text.`
+            : ''
+        }`,
+      });
+    } catch (e) {
+      console.warn('[cards] Anki export failed', e);
+      setMessage({
+        title: "Couldn't export",
+        message: String((e as Error)?.message ?? e),
+      });
+    }
+  };
+
   const backup = async () => {
     if (!(await ensureWritePermission())) {
       setMessage({
@@ -133,7 +182,7 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
       <T size={16}>
         Copy deck files (.txt, .csv, .md) to your Supernote, for example into
         Document or INBOX, then choose them here. Each file becomes a deck, and
-        folders become folders.
+        folders become folders. Anki exports (Notes in Plain Text) work too.
       </T>
       <Spacer h={14} />
       <Button
@@ -159,6 +208,12 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
         disabled={lib.decks.length === 0}
         onPress={exportAll}
       />
+      <Spacer h={10} />
+      <Button
+        label="Export for Anki"
+        disabled={lib.cards.length === 0}
+        onPress={exportAnki}
+      />
 
       <SectionTitle>Backup</SectionTitle>
       <T size={16}>
@@ -175,8 +230,8 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
 
       <Spacer h={18} />
       <T size={14} muted>
-        Flashcards has no internet access. Your cards stay in the plugin's private
-        storage and only leave when you export or back up.
+        Flashcards has no internet access. Your cards stay in the plugin's
+        private storage and only leave when you export or back up.
       </T>
       {message ? (
         <MessageDialog {...message} onDismiss={() => setMessage(null)} />
@@ -525,8 +580,15 @@ function HowToWrite({onClose}: {onClose: () => void}) {
       <Example>{'Front,Back\ngato,cat\nperro,dog'}</Example>
       <SectionTitle>Folders</SectionTitle>
       <T size={16}>
-        Folders on your computer become folders in Flashcards. Lines that start with
-        # are ignored, so you can use them as headings.
+        Folders on your computer become folders in Flashcards. Lines that start
+        with # are ignored, so you can use them as headings.
+      </T>
+      <SectionTitle>From Anki</SectionTitle>
+      <T size={16}>
+        In Anki on a computer: File › Export, choose Notes in Plain Text (.txt),
+        and tick Include deck name. Copy the file across and import it here.
+        Anki's subdecks become folders, and cloze cards hide their gaps on the
+        front. Pictures and sounds stay behind; the text comes across.
       </T>
       <SectionTitle>Getting files onto the Supernote</SectionTitle>
       <T size={16}>
@@ -552,8 +614,8 @@ function HowToWrite({onClose}: {onClose: () => void}) {
       <T size={16}>
         Select text in the document and tap Make card in the selection menu. The
         text goes on the front; type the answer, or tap Swap sides if you
-        selected the answer. You can also open Flashcards from the reader's toolbar
-        to study without leaving the book.
+        selected the answer. You can also open Flashcards from the reader's
+        toolbar to study without leaving the book.
       </T>
     </Screen>
   );

@@ -10,6 +10,7 @@
  * paths inside are the same ones the zip would have held.
  */
 
+import {isAnkiText, parseAnki} from './anki';
 import {CardPair, formatDeck, isSupported, parseDeck} from './deckParser';
 import {
   Card,
@@ -709,6 +710,25 @@ export function importFiles(
       ignored.push(file.path);
       continue;
     }
+    if (isAnkiText(file.content)) {
+      // One Anki file can hold many decks; "A::B" decks become folders, under
+      // the folders the file itself is in.
+      const anki = parseAnki(file.content, [split[1]]);
+      warnings.push(...anki.warnings);
+      for (const d of anki.decks) {
+        const folderNames = [...split[0], ...d.path.slice(0, -1)];
+        const deckName = d.path[d.path.length - 1];
+        const key = JSON.stringify([folderNames, deckName]);
+        const entry = parsedByDeck.get(key) ?? {
+          folderNames,
+          deckName,
+          cards: [],
+        };
+        entry.cards.push(...d.cards);
+        parsedByDeck.set(key, entry);
+      }
+      continue;
+    }
     const name = file.path.slice(
       file.path.replace(/\\/g, '/').lastIndexOf('/') + 1,
     );
@@ -888,7 +908,9 @@ const safePath = (path: string) => path.split('/').map(safeSegment).join('/');
 /** A safe file name for exporting one deck or folder. */
 export function exportFileName(name: string, extension: string): string {
   return (
-    (name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Flashcards') + '.' + extension
+    (name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Flashcards') +
+    '.' +
+    extension
   );
 }
 
