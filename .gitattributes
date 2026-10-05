@@ -1,0 +1,11 @@
+# Keep text files LF in every checkout, whatever core.autocrlf says.
+# The example decks are compared byte-for-byte with their bundled copy
+# (src/core/core.test.ts), and buildPlugin.sh must stay LF to run.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+*.keystore binary
+*.png binary
+*.jpg binary
+*.jar binary
+*.snplg binary
