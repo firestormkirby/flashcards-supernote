@@ -34,6 +34,8 @@ export interface AppSettings {
   backupEveryDays: number;
   lastBackupAt: number;
   backupPromptAt: number;
+  /** The deck a new card was last saved into: where the next new card goes. */
+  lastDeckId: string | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +58,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backupEveryDays: 30,
   lastBackupAt: 0,
   backupPromptAt: 0,
+  lastDeckId: null,
 };
 
 const KEY = 'cards:settings:v1';

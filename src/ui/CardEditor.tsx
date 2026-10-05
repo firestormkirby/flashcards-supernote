@@ -2,14 +2,25 @@
  * Writing and editing cards, and the pickers for where things go.
  */
 
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {FlatList, ScrollView, View, useWindowDimensions} from 'react-native';
 import * as L from '../core/library';
-import {Card, CardImage, Deck, Folder, makeCard, plural} from '../core/model';
+import {
+  Card,
+  CardImage,
+  Deck,
+  Folder,
+  LibraryData,
+  makeCard,
+  plural,
+} from '../core/model';
+import {closePanel, waitForPicture} from '../sdk/router';
 import {CardPicture, CropScreen, ImageFilePicker} from './Picture';
-import {updateLibrary} from '../storage/libraryStore';
+import {updateLibrary, updateLibraryAndGet} from '../storage/libraryStore';
+import {getSettings, updateSettings} from '../storage/settingsStore';
 import {Nav} from './nav';
 import {
+  ActionsDialog,
   BarButton,
   Button,
   ConfirmDialog,
@@ -22,6 +33,7 @@ import {
   Screen,
   Spacer,
   T,
+  TextInputDialog,
   useLibrary,
   useTheme,
 } from './kit';
@@ -50,8 +62,14 @@ export function CardEditScreen({
   const existing = cardId ? L.findCard(lib, cardId) : undefined;
   const [front, setFront] = useState(existing?.front ?? draft?.front ?? '');
   const [back, setBack] = useState(existing?.back ?? draft?.back ?? '');
-  const [targetDeck, setTargetDeck] = useState<string | null>(
-    existing?.deckId ?? deckId ?? null,
+  const [targetDeck, setTargetDeck] = useState<string | null>(() =>
+    startingDeck(
+      lib,
+      existing,
+      deckId,
+      getSettings().lastDeckId,
+      draft?.source,
+    ),
   );
   const [frontImage, setFrontImage] = useState<CardImage | undefined>(
     existing ? existing.frontImage : draft?.frontImage,
@@ -65,8 +83,31 @@ export function CardEditScreen({
     | null
   >(null);
   const [picking, setPicking] = useState(false);
+  /** The "+ Picture" menu is open for this side. */
+  const [pictureMenu, setPictureMenu] = useState<Side | null>(null);
+  /** Waiting for Picture card to be tapped on a page, for this side. */
+  const [waitingFor, setWaitingFor] = useState<Side | null>(null);
+  const [pictureNote, setPictureNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+
+  // While waiting, the next Picture card tap (toolbar or lasso) comes here
+  // instead of starting a new card. Leaving the editor drops the waiter.
+  useEffect(() => {
+    if (!waitingFor) return;
+    return waitForPicture((result, from) => {
+      setWaitingFor(null);
+      if (!result.image) {
+        setPictureNote(result.note ?? "The picture couldn't be captured.");
+      } else if (from === 'page') {
+        // A whole page: mark the part you want, as for the front.
+        setPicture({side: waitingFor, step: 'crop', img: result.image});
+      } else {
+        // A lasso picture is exactly what was lassoed; nothing to mark.
+        (waitingFor === 'front' ? setFrontImage : setBackImage)(result.image);
+      }
+    });
+  }, [waitingFor]);
 
   if (cardId && !existing) {
     return (
@@ -147,6 +188,9 @@ export function CardEditScreen({
       updateLibrary(l =>
         L.upsertCard(l, makeCard(deck.id, f, b, {frontImage, backImage})),
       );
+      if (getSettings().lastDeckId !== deck.id) {
+        updateSettings(st => ({...st, lastDeckId: deck.id}));
+      }
       if (another) {
         setFront('');
         setBack('');
@@ -193,6 +237,41 @@ export function CardEditScreen({
             <T size={15}>{draft.note}</T>
           </View>
         ) : null}
+        {waitingFor ? (
+          <View
+            style={{
+              borderWidth: 3,
+              borderColor: t.fg,
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 16,
+            }}>
+            <T size={16} bold>
+              {`Waiting for a picture for the ${waitingFor}`}
+            </T>
+            <T size={15}>
+              Go to the page, then tap Picture card in the toolbar and mark the
+              area. Or lasso something and tap Picture card in the lasso
+              toolbar.
+            </T>
+            <View style={{flexDirection: 'row', marginTop: 6}}>
+              <BarButton label="Go to the page" onPress={() => closePanel()} />
+              <BarButton label="Cancel" onPress={() => setWaitingFor(null)} />
+            </View>
+          </View>
+        ) : null}
+        {pictureNote ? (
+          <View
+            style={{
+              borderWidth: 2,
+              borderColor: t.line,
+              borderRadius: 10,
+              padding: 12,
+              marginBottom: 16,
+            }}>
+            <T size={15}>{pictureNote}</T>
+          </View>
+        ) : null}
         <T size={14} muted>
           Deck
         </T>
@@ -224,7 +303,7 @@ export function CardEditScreen({
         <PictureSlot
           img={frontImage}
           maxWidth={window.width - PAD * 2}
-          onAdd={() => setPicture({side: 'front', step: 'file'})}
+          onAdd={() => setPictureMenu('front')}
           onReCrop={() =>
             frontImage &&
             setPicture({side: 'front', step: 'crop', img: frontImage})
@@ -262,7 +341,7 @@ export function CardEditScreen({
         <PictureSlot
           img={backImage}
           maxWidth={window.width - PAD * 2}
-          onAdd={() => setPicture({side: 'back', step: 'file'})}
+          onAdd={() => setPictureMenu('back')}
           onReCrop={() =>
             backImage &&
             setPicture({side: 'back', step: 'crop', img: backImage})
@@ -301,6 +380,23 @@ export function CardEditScreen({
         ) : null}
         <Spacer h={40} />
       </ScrollView>
+      {pictureMenu ? (
+        <ActionsDialog
+          title={`Picture for the ${pictureMenu}`}
+          onDismiss={() => setPictureMenu(null)}
+          actions={pictureSources(pictureMenu, frontImage, backImage, {
+            fromPage: side => {
+              setPictureNote(null);
+              setWaitingFor(side);
+              // Back to the note or document; Picture card brings it here.
+              closePanel();
+            },
+            samePage: (side, page) =>
+              setPicture({side, step: 'crop', img: {...page, crop: undefined}}),
+            fromFile: side => setPicture({side, step: 'file'}),
+          })}
+        />
+      ) : null}
       {confirmDelete && existing ? (
         <ConfirmDialog
           title="Delete this card?"
@@ -325,6 +421,8 @@ export interface CardDraft {
   note?: string;
   frontImage?: CardImage;
   backImage?: CardImage;
+  /** Path of the note or document a toolbar card came from. */
+  source?: string;
 }
 
 /** The card with its pictures set (or removed), without leaving undefined keys behind. */
@@ -339,6 +437,83 @@ function withImages(
   if (frontImage) out.frontImage = frontImage;
   if (backImage) out.backImage = backImage;
   return out;
+}
+
+/**
+ * The deck a card starts in when the editor opens. An existing card shows
+ * the deck it lives in; a new card goes to the deck it was opened from, or
+ * else where the last new card went, so a run of cards made from the toolbar
+ * (Make card, Picture card) all land in the same deck without choosing it
+ * each time. A remembered deck may since have been deleted.
+ */
+export function startingDeck(
+  lib: LibraryData,
+  existing: Card | undefined,
+  openedFrom: string | null,
+  lastDeckId: string | null,
+  source?: string,
+): string | null {
+  if (existing) return existing.deckId;
+  const named = source ? deckNamedAfter(lib, source) : null;
+  for (const id of [openedFrom, named, lastDeckId]) {
+    if (id && L.findDeck(lib, id)) return id;
+  }
+  return null;
+}
+
+/**
+ * A deck named like the note or document a card came from ("Biology.note" →
+ * Biology), or else like the folder it is in (Note/Biology/Week 3.note →
+ * Biology). Names match ignoring case; the first such deck wins.
+ */
+export function deckNamedAfter(lib: LibraryData, path: string): string | null {
+  const parts = path.replace(/\\/g, '/').split('/').filter(Boolean);
+  const file = parts[parts.length - 1] ?? '';
+  const dot = file.lastIndexOf('.');
+  const candidates = [
+    dot > 0 ? file.slice(0, dot) : file,
+    parts[parts.length - 2],
+  ];
+  for (const name of candidates) {
+    const want = name?.trim().toLowerCase();
+    if (!want) continue;
+    const deck = lib.decks.find(d => d.name.trim().toLowerCase() === want);
+    if (deck) return deck.id;
+  }
+  return null;
+}
+
+/**
+ * Where a picture can come from: a page (Picture card on the toolbar, so the
+ * capture still happens at button-press time), the same page as the other
+ * side's picture when that one is a page capture, or an image file.
+ */
+function pictureSources(
+  side: Side,
+  frontImage: CardImage | undefined,
+  backImage: CardImage | undefined,
+  on: {
+    fromPage: (side: Side) => void;
+    samePage: (side: Side, page: CardImage) => void;
+    fromFile: (side: Side) => void;
+  },
+): {label: string; onPress: () => void}[] {
+  const other = side === 'front' ? backImage : frontImage;
+  const otherIsPage = !!other && other.file.startsWith('page-');
+  return [
+    {label: 'From a page (Picture card)', onPress: () => on.fromPage(side)},
+    ...(otherIsPage
+      ? [
+          {
+            label: `From the same page as the ${
+              side === 'front' ? 'back' : 'front'
+            }`,
+            onPress: () => on.samePage(side, other!),
+          },
+        ]
+      : []),
+    {label: 'From an image file', onPress: () => on.fromFile(side)},
+  ];
 }
 
 /** Under each side: the picture with Change area / Remove, or a way to add one. */
@@ -400,12 +575,18 @@ export function DeckPicker({
   const [folderId, setFolderId] = useState<string | null>(
     L.findFolder(lib, startFolder) ? startFolder : null,
   );
+  const [naming, setNaming] = useState(false);
   const folder = L.findFolder(lib, folderId);
-  type PickRow = {key: string; folder: Folder} | {key: string; deck: Deck};
+  type PickRow =
+    | {key: string; folder: Folder}
+    | {key: string; deck: Deck}
+    | {key: string; newDeck: true};
   const rows: PickRow[] = [
     ...L.childFolders(lib, folderId).map(f => ({key: `f${f.id}`, folder: f})),
     ...L.decksIn(lib, folderId).map(d => ({key: `d${d.id}`, deck: d})),
+    {key: 'new', newDeck: true},
   ];
+  const where = folder ? folder.name : 'Home';
   return (
     <Screen
       title={title}
@@ -414,43 +595,54 @@ export function DeckPicker({
       }
       onBack={folder ? () => setFolderId(folder.parentId) : onClose}
       backLabel={folder ? '←' : '✕'}>
-      {rows.length === 0 ? (
-        <EmptyState
-          title="No decks here"
-          message={
-            lib.decks.length === 0
-              ? 'Make a deck first: + New › Deck.'
-              : 'Go back to choose another folder.'
+      <FlatList
+        data={rows}
+        keyExtractor={r => r.key}
+        ItemSeparatorComponent={RowSeparator}
+        renderItem={({item}) =>
+          'newDeck' in item ? (
+            <Row
+              lead="+"
+              title="New deck"
+              subtitle={`In ${where}`}
+              onPress={() => setNaming(true)}
+            />
+          ) : 'folder' in item ? (
+            <Row
+              lead="▸"
+              title={item.folder.name}
+              bold
+              onPress={() => setFolderId(item.folder.id)}
+              right={<T size={20}>›</T>}
+            />
+          ) : (
+            <Row
+              lead={item.deck.id === currentDeckId ? '✓' : '▭'}
+              title={item.deck.name}
+              selected={item.deck.id === currentDeckId}
+              subtitle={item.deck.id === currentDeckId ? 'Current deck' : null}
+              onPress={() => onPick(item.deck.id)}
+            />
+          )
+        }
+      />
+      {naming ? (
+        <TextInputDialog
+          title="New deck"
+          initial=""
+          confirmLabel="Create"
+          validate={v =>
+            L.nameTakenInFolder(lib, folderId, v)
+              ? 'That name is already used here'
+              : null
           }
+          onDismiss={() => setNaming(false)}
+          onConfirm={v => {
+            setNaming(false);
+            onPick(updateLibraryAndGet(l => L.addDeck(l, folderId, v)).id);
+          }}
         />
-      ) : (
-        <FlatList
-          data={rows}
-          keyExtractor={r => r.key}
-          ItemSeparatorComponent={RowSeparator}
-          renderItem={({item}) =>
-            'folder' in item ? (
-              <Row
-                lead="▸"
-                title={item.folder.name}
-                bold
-                onPress={() => setFolderId(item.folder.id)}
-                right={<T size={20}>›</T>}
-              />
-            ) : (
-              <Row
-                lead="▭"
-                title={item.deck.name}
-                bold={item.deck.id === currentDeckId}
-                subtitle={
-                  item.deck.id === currentDeckId ? 'Current deck' : null
-                }
-                onPress={() => onPick(item.deck.id)}
-              />
-            )
-          }
-        />
-      )}
+      ) : null}
     </Screen>
   );
 }

@@ -33,9 +33,11 @@ export type PanelIntent =
       back: string;
       note?: string;
       frontImage?: CardImage;
+      /** The note or document it came from (to suggest a deck). */
+      source?: string;
     }
   /** Mark a region of a captured page, then open it as a new card. */
-  | {kind: 'cropPicture'; image: CardImage};
+  | {kind: 'cropPicture'; image: CardImage; source?: string};
 
 let pendingIntent: PanelIntent | null = null;
 const intentListeners = new Set<() => void>();
@@ -73,6 +75,37 @@ export function subscribePanelIntent(fn: () => void): () => void {
   return () => {
     intentListeners.delete(fn);
   };
+}
+
+/**
+ * A card being written can ask for its next picture to come from a page: the
+ * editor registers a waiter and closes the panel, the user goes to the page
+ * and taps Picture card, and the capture (still made at button-press time,
+ * before the panel opens) is handed to the waiting editor instead of starting
+ * a new card. One waiter at a time; the editor removes it when it goes away,
+ * so a stale one never swallows a capture.
+ */
+export type PictureFrom = 'page' | 'lasso';
+export type PictureWaiter = (
+  result: {image?: CardImage; note?: string},
+  from: PictureFrom,
+) => void;
+
+let pictureWaiter: PictureWaiter | null = null;
+
+/** Registers the waiter; the returned function removes it (if still current). */
+export function waitForPicture(fn: PictureWaiter): () => void {
+  pictureWaiter = fn;
+  return () => {
+    if (pictureWaiter === fn) pictureWaiter = null;
+  };
+}
+
+/** One-shot: returns and clears the waiter, if a card is waiting for a picture. */
+export function takePictureWaiter(): PictureWaiter | null {
+  const w = pictureWaiter;
+  pictureWaiter = null;
+  return w;
 }
 
 export function openPanel(): void {

@@ -366,3 +366,114 @@ test('page picture: mark an area with two taps, it lands on a new card, and show
   fireEvent.press(scr().getByText('Show answer'));
   expect(scr().getByText('The Krebs cycle')).toBeTruthy();
 });
+
+test('deck chooser: make a new deck right there, and the next card starts in it', async () => {
+  const m = load();
+  await openApp(m);
+  fireEvent.press(scr().getByText('+ New'));
+  fireEvent.press(await scr().findByText('Card'));
+  fireEvent.press(await scr().findByText('Choose a deck'));
+  // Examples is a folder: a new deck is made in the folder you are looking at.
+  fireEvent.press(await scr().findByText('Examples'));
+  fireEvent.press(await scr().findByText('New deck'));
+  fireEvent.changeText(scr().getByDisplayValue(''), 'Biology');
+  fireEvent.press(scr().getByText('Create'));
+  // Back in the editor, with the new deck chosen.
+  await scr().findByText('New card');
+  expect(scr().getByText('Biology')).toBeTruthy();
+  const biology = m.store.getLibrary().decks.find(d => d.name === 'Biology')!;
+  const examples = m.store
+    .getLibrary()
+    .folders.find(f => f.name === 'Examples')!;
+  expect(biology.folderId).toBe(examples.id);
+
+  const [front, back] = scr().getAllByPlaceholderText(
+    /Question or term|Answer/,
+  );
+  fireEvent.changeText(front, 'Mitosis');
+  fireEvent.changeText(back, 'Cell division');
+  fireEvent.press(scr().getByText('Save card'));
+
+  // A card from the toolbar (no deck of its own) goes where the last one went.
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: 'Osmosis',
+      back: '',
+      note: 'Made from the selected text.',
+    });
+  });
+  await scr().findByText('New card');
+  expect(scr().getByText('Biology')).toBeTruthy();
+  expect(scr().queryByText('Choose a deck')).toBeNull();
+  // …and the chooser shows that deck inverted, as the current one.
+  fireEvent.press(scr().getByText('Biology'));
+  const currentRow = await scr().findByText('Current deck');
+  // Light text on a dark row (light theme: white on black).
+  const {StyleSheet} = require('react-native');
+  const colorOf = (el: any) => StyleSheet.flatten(el.props.style).color;
+  expect(colorOf(currentRow)).toBe('#FFFFFF');
+  expect(colorOf(scr().getByText('Biology'))).toBe('#FFFFFF');
+});
+
+test('a remembered deck that was deleted is not used', async () => {
+  const m = load();
+  await openApp(m);
+  const settings = require('../storage/settingsStore');
+  act(() => {
+    settings.updateSettings((s: any) => ({...s, lastDeckId: 'gone'}));
+    m.router.setPanelIntent({kind: 'newCardDraft', front: 'Q', back: 'A'});
+  });
+  await scr().findByText('New card');
+  expect(scr().getByText('Choose a deck')).toBeTruthy();
+});
+
+test('picture for the back from a page: the editor waits, Picture card fills it in', async () => {
+  const m = load();
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: 'Label the heart',
+      back: '',
+    });
+  });
+  await scr().findByText('New card');
+  const adds = scr().getAllByLabelText('Add a picture');
+  fireEvent.press(adds[1]); // the back's
+  fireEvent.press(await scr().findByText('From a page (Picture card)'));
+  // The panel closes so the page can be reached.
+  await waitFor(() =>
+    expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled(),
+  );
+  expect(scr().getByText('Waiting for a picture for the back')).toBeTruthy();
+
+  // Tapping Picture card captures the page (in index.js) and hands it over.
+  const waiter = m.router.takePictureWaiter();
+  expect(waiter).toBeTruthy();
+  act(() =>
+    waiter!({image: {file: 'page-9.png', width: 1000, height: 1400}}, 'page'),
+  );
+  await scr().findByText('Picture for the back');
+  fireEvent.press(scr().getByText('Use whole picture'));
+  await scr().findByText('New card');
+  expect(scr().queryByText('Waiting for a picture for the back')).toBeNull();
+  expect(scr().getAllByLabelText('Picture')).toHaveLength(1);
+
+  // The front can now come from that same page.
+  fireEvent.press(scr().getByLabelText('Add a picture'));
+  expect(await scr().findByText('From the same page as the back')).toBeTruthy();
+});
+
+test('a card that stops waiting gives Picture card back to new cards', async () => {
+  const m = load();
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({kind: 'newCardDraft', front: 'Q', back: ''});
+  });
+  await scr().findByText('New card');
+  fireEvent.press(scr().getAllByLabelText('Add a picture')[1]);
+  fireEvent.press(await scr().findByText('From a page (Picture card)'));
+  fireEvent.press(await scr().findByText('Cancel'));
+  expect(m.router.takePictureWaiter()).toBeNull();
+});

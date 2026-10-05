@@ -22,6 +22,7 @@ import {name as appName} from './app.json';
 import {captureDocSelection} from './src/sdk/docSelection';
 import {captureLassoCard} from './src/sdk/lassoCard';
 import {capturePage, captureLassoPicture} from './src/sdk/pictureCapture';
+import {currentFilePath} from './src/sdk/source';
 import {
   BTN_DOC_TEXT_CARD,
   BTN_LASSO_CARD,
@@ -31,6 +32,7 @@ import {
   installRouter,
   openPanel,
   setPanelIntent,
+  takePictureWaiter,
 } from './src/sdk/router';
 import {loadLibrary} from './src/storage/libraryStore';
 import {loadSettings} from './src/storage/settingsStore';
@@ -107,23 +109,31 @@ PluginManager.registerButton(3, ['DOC'], {
 
 installRouter(event => {
   if (event && event.id === BTN_PAGE_PICTURE) {
-    capturePage().then(result => {
-      if (result.image) {
-        setPanelIntent({kind: 'cropPicture', image: result.image});
+    capturePage().then(async result => {
+      // A card in the editor asked for this picture (e.g. for its back).
+      const waiter = takePictureWaiter();
+      if (waiter) {
+        waiter(result, 'page');
       } else {
-        setPanelIntent({
-          kind: 'newCardDraft',
-          front: '',
-          back: '',
-          note: result.note,
-        });
+        const source = await currentFilePath();
+        setPanelIntent(
+          result.image
+            ? {kind: 'cropPicture', image: result.image, source}
+            : {kind: 'newCardDraft', front: '', back: '', note: result.note},
+        );
       }
       openPanel();
     });
     return;
   }
   if (event && event.id === BTN_LASSO_PICTURE) {
-    captureLassoPicture().then(result => {
+    captureLassoPicture().then(async result => {
+      const waiter = takePictureWaiter();
+      if (waiter) {
+        waiter(result, 'lasso');
+        openPanel();
+        return;
+      }
       setPanelIntent({
         kind: 'newCardDraft',
         front: '',
@@ -132,23 +142,33 @@ installRouter(event => {
         note: result.image
           ? 'The picture is on the front. Write the answer on the back, or tap Swap sides.'
           : result.note,
+        source: await currentFilePath(),
       });
       openPanel();
     });
     return;
   }
   if (event && event.id === BTN_DOC_TEXT_CARD) {
-    captureDocSelection().then(result => {
-      setPanelIntent({kind: 'newCardDraft', ...result});
+    captureDocSelection().then(async result => {
+      setPanelIntent({
+        kind: 'newCardDraft',
+        ...result,
+        source: await currentFilePath(),
+      });
       openPanel();
     });
     return;
   }
   if (event && event.id === BTN_LASSO_CARD) {
     // Read and recognise the selection now, while it still exists and before
-    // the panel opens (see src/sdk/lassoCard.ts), then open the editor.
-    captureLassoCard().then(result => {
-      setPanelIntent({kind: 'newCardDraft', ...result});
+    // the panel opens (see src/sdk/lassoCard.ts), then open the editor. The
+    // file path is asked for only after recognition has finished.
+    captureLassoCard().then(async result => {
+      setPanelIntent({
+        kind: 'newCardDraft',
+        ...result,
+        source: await currentFilePath(),
+      });
       openPanel();
     });
     return;

@@ -105,13 +105,14 @@ function Panel() {
             back: intent.back,
             note: intent.note,
             frontImage: intent.frontImage,
+            source: intent.source,
           },
         },
       ]);
     } else if (intent?.kind === 'cropPicture') {
       setStack(s => [
         ...s.filter(r => r.name !== 'study'),
-        {name: 'cropPicture', image: intent.image},
+        {name: 'cropPicture', image: intent.image, source: intent.source},
       ]);
     }
   }, []);
@@ -203,6 +204,7 @@ function Panel() {
                   front: '',
                   back: '',
                   frontImage: img,
+                  source: route.source,
                   note: 'The picture is on the front. Write the answer on the back, or tap Swap sides to quiz yourself the other way round.',
                 },
               })

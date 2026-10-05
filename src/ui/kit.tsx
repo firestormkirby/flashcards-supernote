@@ -338,6 +338,7 @@ export function Row({
   lead,
   titleLines = 2,
   pad = PAD,
+  selected,
 }: {
   title: string;
   subtitle?: string | null;
@@ -349,24 +350,33 @@ export function Row({
   titleLines?: number;
   /** Side padding; 0 inside a page that is already padded. */
   pad?: number;
+  /** Drawn inverted (light on dark), like a selected tab: the strongest contrast e-ink has. */
+  selected?: boolean;
 }) {
+  const t = useTheme();
+  const ink = selected ? {color: t.onFg} : undefined;
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={!onPress && !onLongPress}
-      style={[styles.row, {paddingHorizontal: pad}]}>
+      accessibilityState={selected ? {selected: true} : undefined}
+      style={[
+        styles.row,
+        {paddingHorizontal: pad},
+        selected ? {backgroundColor: t.fg} : null,
+      ]}>
       {lead ? (
-        <T size={20} style={{width: 34}}>
+        <T size={20} style={[{width: 34}, ink]}>
           {lead}
         </T>
       ) : null}
       <View style={{flex: 1}}>
-        <T size={18} bold={bold} lines={titleLines}>
+        <T size={18} bold={bold || selected} lines={titleLines} style={ink}>
           {title}
         </T>
         {subtitle ? (
-          <T size={14} muted lines={2}>
+          <T size={14} muted={!selected} lines={2} style={ink}>
             {subtitle}
           </T>
         ) : null}

@@ -32,7 +32,7 @@ export type Route =
       draft?: CardDraft;
     }
   /** Mark a region of a captured page; the result opens as a new card. */
-  | {name: 'cropPicture'; image: CardImage}
+  | {name: 'cropPicture'; image: CardImage; source?: string}
   /** Move decks / folders (all from the same place) into another folder. */
   | {name: 'moveItems'; deckIds: string[]; folderIds: string[]};
 
