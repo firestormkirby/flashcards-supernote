@@ -1,10 +1,10 @@
 /**
- * Cards — plugin entry point.
+ * Flashcards — plugin entry point.
  *
  *  1. Register the React component (its name must equal PluginConfig.json's pluginKey).
  *  2. Init the SDK straight after.
  *  3. Register the buttons:
- *     - "Cards" on the toolbar (notes and documents): opens the panel.
+ *     - "Flashcards" on the toolbar (notes and documents): opens the panel.
  *     - "Picture card" on the toolbar: a picture of part of the current page.
  *     - "Make card" on the lasso toolbar: handwriting → text card.
  *     - "Picture card" on the lasso toolbar: whatever is lassoed → picture card.
@@ -54,7 +54,7 @@ const ICON = iconUri();
 // In notes and in the document reader (PDF, EPUB), so you can study while reading.
 PluginManager.registerButton(1, ['NOTE', 'DOC'], {
   id: BTN_OPEN,
-  name: JSON.stringify({en: 'Cards'}),
+  name: JSON.stringify({en: 'Flashcards'}),
   icon: ICON,
   showType: 0,
 });

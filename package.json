@@ -1,7 +1,7 @@
 {
-  "name": "cards",
+  "name": "flashcards",
   "version": "1.0.0",
-  "description": "Cards: calm, offline flashcards for Supernote",
+  "description": "Flashcards: calm, offline spaced-repetition study for Supernote",
   "private": true,
   "scripts": {
     "lint": "eslint .",

@@ -108,7 +108,7 @@ export function LibraryScreen({
   }
 
   const here = L.deckIdsUnder(lib, folderId);
-  const title = folder ? folder.name : 'Cards';
+  const title = folder ? folder.name : 'Flashcards';
   const subtitle = folder
     ? L.folderPath(lib, folder.parentId).replace(/\//g, ' / ') || 'Home'
     : null;

@@ -17,7 +17,7 @@ export function WelcomeDialog({onDone}: {onDone: () => void}) {
   return (
     <Dialog onDismiss={onDone}>
       <T size={23} bold center>
-        Welcome to Cards
+        Welcome to Flashcards
       </T>
       <Spacer h={8} />
       <T size={16} muted center>

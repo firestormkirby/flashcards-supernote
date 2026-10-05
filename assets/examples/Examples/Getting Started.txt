@@ -1,4 +1,4 @@
-# Getting Started — a few cards about Cards itself. Delete this deck whenever you like.
+# Getting Started — a few cards about Flashcards itself. Delete this deck whenever you like.
 
 Q: What's the difference between Study and Practice?
 A: Study shows each card when it's due and spaces out your reviews so you remember them for longer.

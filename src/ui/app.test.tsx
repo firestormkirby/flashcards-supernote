@@ -59,7 +59,7 @@ async function openApp(m: Mods) {
   current = m;
   ({act, fireEvent, waitFor} = m.rtl);
   m.rtl.render(m.React.createElement(m.App));
-  await scr().findByText('Welcome to Cards');
+  await scr().findByText('Welcome to Flashcards');
   fireEvent.press(scr().getByText('Get started'));
   await scr().findByText('Trivia Night');
 }
@@ -240,7 +240,7 @@ test('import a folder from the device, then export it', async () => {
     .filter((p: string) => p.startsWith('/storage'));
   expect(
     paths.some((p: string) =>
-      /EXPORT\/Cards \d{4}-\d\d-\d\d\/Plants\/Leaves\.txt$/.test(p),
+      /EXPORT\/Flashcards \d{4}-\d\d-\d\d\/Plants\/Leaves\.txt$/.test(p),
     ),
   ).toBe(true);
 });

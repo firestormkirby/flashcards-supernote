@@ -28,7 +28,7 @@ const MAX_FILES = 2000;
 const MAX_DEPTH = 16;
 
 const PERMISSION_DESC =
-  'Cards reads deck files you choose and saves exports to the EXPORT folder. ' +
+  'Flashcards reads deck files you choose and saves exports to the EXPORT folder. ' +
   'Choose "Always allow" so you are not asked every time.';
 
 async function ensureOne(permission: string): Promise<boolean> {
@@ -123,7 +123,7 @@ export async function writeExport(
   files: IncomingFile[],
 ): Promise<string> {
   const stem = `${EXPORT_DIR}/${
-    base.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Cards'
+    base.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Flashcards'
   } ${today()}`;
   let dir = stem;
   for (let n = 2; await RNFS.exists(dir); n++) dir = `${stem} (${n})`;
@@ -137,14 +137,14 @@ export async function writeExport(
   return dir;
 }
 
-/** "/storage/emulated/0/EXPORT/Cards" → "EXPORT/Cards", for messages. */
+/** "/storage/emulated/0/EXPORT/Flashcards" → "EXPORT/Flashcards", for messages. */
 export function displayPath(path: string): string {
   return path.startsWith(STORAGE_ROOT + '/')
     ? path.slice(STORAGE_ROOT.length + 1)
     : path;
 }
 
-/** Library backups (with study progress), named "Cards backup <date>.json". */
+/** Library backups (with study progress), named "Flashcards backup <date>.json". */
 export async function listBackups(
   path: string,
 ): Promise<{name: string; path: string}[]> {
@@ -169,7 +169,7 @@ export async function writeBackup(
   pictures: {dir: string; files: string[]} = {dir: '', files: []},
 ): Promise<string> {
   if (!(await RNFS.exists(EXPORT_DIR))) await RNFS.mkdir(EXPORT_DIR);
-  const stem = `Cards backup ${today()}`;
+  const stem = `Flashcards backup ${today()}`;
   if (pictures.files.length === 0) {
     let target = `${EXPORT_DIR}/${stem}.json`;
     for (let n = 2; await RNFS.exists(target); n++)

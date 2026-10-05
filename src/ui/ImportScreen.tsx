@@ -83,7 +83,7 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
       title: 'Exporting…',
       message: 'Saving your decks as text files.',
     });
-    const res = await exportToDevice(lib, null, 'Cards');
+    const res = await exportToDevice(lib, null, 'Flashcards');
     if (res.title === 'Exported')
       updateSettings(s => ({...s, lastBackupAt: Date.now()}));
     setMessage(res);
@@ -94,7 +94,7 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
       setMessage({
         title: "Couldn't save",
         message:
-          'Cards needs permission to save files. Try again and choose Allow.',
+          'Flashcards needs permission to save files. Try again and choose Allow.',
       });
       return;
     }
@@ -175,7 +175,7 @@ function ImportMenu({setMode}: {setMode: (m: Mode) => void}) {
 
       <Spacer h={18} />
       <T size={14} muted>
-        Cards has no internet access. Your cards stay in the plugin's private
+        Flashcards has no internet access. Your cards stay in the plugin's private
         storage and only leave when you export or back up.
       </T>
       {message ? (
@@ -219,7 +219,7 @@ function Browser({
       if (!(await ensureReadPermission())) {
         if (alive)
           setError(
-            'Cards needs permission to read files. Go back and try again, then choose Allow.',
+            'Flashcards needs permission to read files. Go back and try again, then choose Allow.',
           );
         return;
       }
@@ -299,7 +299,7 @@ function Browser({
     } catch (e) {
       setReport({
         title: "Couldn't restore",
-        summary: "That file isn't a Cards backup.",
+        summary: "That file isn't a Flashcards backup.",
         warnings: [],
       });
     } finally {
@@ -525,7 +525,7 @@ function HowToWrite({onClose}: {onClose: () => void}) {
       <Example>{'Front,Back\ngato,cat\nperro,dog'}</Example>
       <SectionTitle>Folders</SectionTitle>
       <T size={16}>
-        Folders on your computer become folders in Cards. Lines that start with
+        Folders on your computer become folders in Flashcards. Lines that start with
         # are ignored, so you can use them as headings.
       </T>
       <SectionTitle>Getting files onto the Supernote</SectionTitle>
@@ -552,7 +552,7 @@ function HowToWrite({onClose}: {onClose: () => void}) {
       <T size={16}>
         Select text in the document and tap Make card in the selection menu. The
         text goes on the front; type the answer, or tap Swap sides if you
-        selected the answer. You can also open Cards from the reader's toolbar
+        selected the answer. You can also open Flashcards from the reader's toolbar
         to study without leaving the book.
       </T>
     </Screen>

@@ -142,7 +142,7 @@ export async function capturePage(): Promise<PictureResult> {
     }
     if (!ok || !(await exists(target))) {
       return {
-        note: "The page couldn't be captured. If Cards asked for file access, allow it and try again.",
+        note: "The page couldn't be captured. If Flashcards asked for file access, allow it and try again.",
       };
     }
     const measured = (await measureImage(target)) ?? size;

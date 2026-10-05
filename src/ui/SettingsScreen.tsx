@@ -158,7 +158,7 @@ export function SettingsScreen({nav: _nav}: {nav: Nav}) {
       <T
         size={
           16
-        }>{`Cards ${VERSION} for Supernote. Flashcards for calm, focused study.`}</T>
+        }>{`Flashcards ${VERSION} for Supernote. Calm, focused study.`}</T>
       <Spacer h={8} />
       <T size={15} muted>
         Based on Cards by mrgrtapk (github.com/mrgrtapk/Cards), ported to a

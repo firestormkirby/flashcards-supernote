@@ -888,7 +888,7 @@ const safePath = (path: string) => path.split('/').map(safeSegment).join('/');
 /** A safe file name for exporting one deck or folder. */
 export function exportFileName(name: string, extension: string): string {
   return (
-    (name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Cards') + '.' + extension
+    (name.replace(/[\\/:*?"<>|]/g, '-').trim() || 'Flashcards') + '.' + extension
   );
 }
 

@@ -40,7 +40,7 @@ export async function exportToDevice(
     return {
       title: "Couldn't export",
       message:
-        'Cards needs permission to save files. Try again and choose Allow.',
+        'Flashcards needs permission to save files. Try again and choose Allow.',
     };
   }
   try {

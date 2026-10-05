@@ -1,5 +1,5 @@
 /**
- * Cards — root component. PluginHost renders this full-screen when the panel
+ * Flashcards — root component. PluginHost renders this full-screen when the panel
  * opens (see index.js for the buttons that open it).
  *
  * @format

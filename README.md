@@ -1,4 +1,4 @@
-# Cards for Supernote
+# Flashcards for Supernote
 
 **Calm, offline flashcards with spaced repetition, right inside your Supernote notebook.**
 
@@ -15,10 +15,10 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
 - **Full-screen studying.** Only the card is on screen. Tap the middle to see the answer, the right side for the next card, the left side for the previous one.
 - **Choose which cards:** all, or any mix of due, new and starred.
 - **Stars, search, shuffle, dark mode, and three text sizes.**
-- **Make card from handwriting.** In a note, or on a PDF you've written on, lasso what you wrote and tap **Make card** in the lasso toolbar. Cards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
+- **Make card from handwriting.** In a note, or on a PDF you've written on, lasso what you wrote and tap **Make card** in the lasso toolbar. Flashcards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
 - **Make card from PDFs and ebooks.** In the document reader, select text and tap **Make card** in the selection menu. The text goes on the front (line breaks and hyphenation from the page are tidied up); type the answer, or tap **Swap sides** if you selected the answer.
 - **Picture cards.** Tap **Picture card** in the toolbar (in a PDF, ebook or note), then tap two corners of the part of the page you want, such as a diagram, a figure or a map. It goes on the front of a new card. Or lasso a drawing, sticker or inserted picture and tap **Picture card** in the lasso toolbar to use exactly that. In the editor, **+ Picture** adds a picture to either side, from the page or from an image file (Supernote screenshots are in `SCREENSHOT`). No text selection needed.
-- **Study from anywhere.** The Cards button is in both the note toolbar and the document reader's toolbar.
+- **Study from anywhere.** The Flashcards button is in both the note toolbar and the document reader's toolbar.
 - **Write cards on the device**, or write them on a computer and import them.
 - **Example decks included:** Getting Started, World Capitals, Spanish Basics, and Trivia Night.
 
@@ -32,16 +32,16 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
 
 ## Install
 
-1. Build the plugin (see below), or download `cards.snplg` from a release.
-2. Copy `cards.snplg` into the `MyStyle` folder on your Supernote.
-3. On the device: **Settings › Apps › Plugins › Add plugin**, and pick `cards.snplg`.
-4. Open any note and tap **Cards** in the toolbar.
+1. Build the plugin (see below), or download `flashcards.snplg` from a release.
+2. Copy `flashcards.snplg` into the `MyStyle` folder on your Supernote.
+3. On the device: **Settings › Apps › Plugins › Add plugin**, and pick `flashcards.snplg`.
+4. Open any note and tap **Flashcards** in the toolbar.
 
 ## Importing your cards
 
 1. Write your cards in any plain-text app, or save a spreadsheet as `.csv`.
 2. Copy the files (or a folder of them) to the Supernote, for example into `Document` or `INBOX`, by USB, the Supernote Partner app, or cloud sync.
-3. In Cards, open **Import › Choose files or a folder**, browse to them, and import.
+3. In Flashcards, open **Import › Choose files or a folder**, browse to them, and import.
 
 Each file becomes a deck and folders become folders. Importing a file again after editing it updates the deck and keeps your progress for cards you didn't change.
 
@@ -91,7 +91,7 @@ Requirements are the Supernote plugin toolchain: Node 18+, JDK 19+, the Android 
 ```bash
 npm install
 ./buildPlugin.sh          # or .\buildPlugin.ps1 on Windows
-# → build/outputs/cards.snplg
+# → build/outputs/flashcards.snplg
 ```
 
 `buildPlugin.sh`, `buildPlugin.ps1` and `android/` are Ratta's plugin template build, unchanged apart from the project name.

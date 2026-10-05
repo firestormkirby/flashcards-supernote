@@ -136,7 +136,7 @@ function Panel() {
   if (!ready) {
     return (
       <View style={{flex: 1, backgroundColor: t.bg}}>
-        <EmptyState title="Cards" message="Opening your library…" />
+        <EmptyState title="Flashcards" message="Opening your library…" />
       </View>
     );
   }

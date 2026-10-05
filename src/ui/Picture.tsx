@@ -274,7 +274,7 @@ export function ImageFilePicker({
       if (!(await ensureReadPermission())) {
         if (alive)
           setMessage(
-            'Cards needs permission to read files. Go back, try again, and choose Allow.',
+            'Flashcards needs permission to read files. Go back, try again, and choose Allow.',
           );
         return;
       }
