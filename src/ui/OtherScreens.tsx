@@ -4,6 +4,7 @@ import * as L from '../core/library';
 import {plural, sideLabel} from '../core/model';
 import {updateLibrary} from '../storage/libraryStore';
 import {Nav} from './nav';
+import {PutInNoteDialog} from './shared';
 import {
   BarButton,
   Button,
@@ -25,29 +26,46 @@ export function StarredScreen({nav}: {nav: Nav}) {
   const lib = useLibrary();
   const cards = L.starredCards(lib);
   const deckName = (id: string) => L.findDeck(lib, id)?.name ?? '';
+  const [putting, setPutting] = useState(false);
   return (
     <Screen
       title="Starred"
       subtitle={`${cards.length} ${plural(cards.length, 'card')}`}
       actions={
         cards.length > 0 ? (
-          <BarButton
-            label="▶"
-            accessibilityLabel="Practice starred cards"
-            onPress={() =>
-              nav.go({
-                name: 'study',
-                deckIds: [...new Set(cards.map(c => c.deckId))],
-                title: 'Starred',
-                practice: true,
-                cardIds: cards.map(c => c.id),
-                filters: [],
-                fullScreen: true,
-              })
-            }
-          />
+          <>
+            <BarButton
+              label="Put in note"
+              accessibilityLabel="Put the starred cards in the note"
+              onPress={() => setPutting(true)}
+            />
+            <BarButton
+              label="▶"
+              accessibilityLabel="Practice starred cards"
+              onPress={() =>
+                nav.go({
+                  name: 'study',
+                  deckIds: [...new Set(cards.map(c => c.deckId))],
+                  title: 'Starred',
+                  practice: true,
+                  cardIds: cards.map(c => c.id),
+                  filters: [],
+                  fullScreen: true,
+                })
+              }
+            />
+          </>
         ) : null
       }>
+      {putting ? (
+        // As one Q/A list; pictures stay on the cards (a long list would
+        // scatter them over the page).
+        <PutInNoteDialog
+          cards={cards}
+          pictures={false}
+          onDismiss={() => setPutting(false)}
+        />
+      ) : null}
       {cards.length === 0 ? (
         <EmptyState
           title="No starred cards"

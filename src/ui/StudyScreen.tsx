@@ -27,7 +27,7 @@ import {CardEditScreen} from './CardEditor';
 import {CardPicture} from './Picture';
 import {StudyTipsDialog} from './Dialogs';
 import {Nav, Route} from './nav';
-import {studyCount} from './shared';
+import {PutInNoteDialog, studyCount} from './shared';
 import {
   BarButton,
   Button,
@@ -104,6 +104,7 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
   const [history, setHistory] = useState<Step[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  const [putting, setPutting] = useState<Card | null>(null);
   // A double-tap opens full screen this once, whatever the usual view is.
   const [forcedFullScreen, setForcedFullScreen] = useState(!!route.fullScreen);
 
@@ -260,6 +261,12 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
           <>
             {revealed ? (
               <BarButton
+                label="Put in note"
+                onPress={() => setPutting(current)}
+              />
+            ) : null}
+            {revealed ? (
+              <BarButton
                 label="Edit"
                 onPress={() => setEditingId(current.id)}
               />
@@ -358,6 +365,13 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
         </>
       )}
       {tips}
+      {putting ? (
+        <PutInNoteDialog
+          cards={[putting]}
+          pictures
+          onDismiss={() => setPutting(null)}
+        />
+      ) : null}
     </Screen>
   );
 }

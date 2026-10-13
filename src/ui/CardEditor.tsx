@@ -25,6 +25,7 @@ import {
 import {updateLibrary, updateLibraryAndGet} from '../storage/libraryStore';
 import {getSettings, updateSettings} from '../storage/settingsStore';
 import {Nav} from './nav';
+import {PutInNoteDialog} from './shared';
 import {
   ActionsDialog,
   BarButton,
@@ -96,6 +97,7 @@ export function CardEditScreen({
   /** Waiting for Picture card to be tapped on a page, for this side. */
   const [waitingFor, setWaitingFor] = useState<Side | null>(null);
   const [pictureNote, setPictureNote] = useState<string | null>(null);
+  const [putting, setPutting] = useState(false);
   // Where the cursor is in the back, for the B and I buttons.
   const [backSel, setBackSel] = useState<Selection>({start: 0, end: 0});
   const [forcedBackSel, setForcedBackSel] = useState<Selection | undefined>();
@@ -410,6 +412,15 @@ export function CardEditScreen({
           disabled={!canSave}
           onPress={() => save(false)}
         />
+        {front.trim() !== '' ||
+        back.trim() !== '' ||
+        frontImage ||
+        backImage ? (
+          <>
+            <Spacer h={10} />
+            <Button label="Put in note" onPress={() => setPutting(true)} />
+          </>
+        ) : null}
         {!existing ? (
           <>
             <Spacer h={10} />
@@ -435,6 +446,24 @@ export function CardEditScreen({
         ) : null}
         <Spacer h={40} />
       </ScrollView>
+      {putting ? (
+        <PutInNoteDialog
+          // The card as it is on screen, saved or not.
+          cards={[
+            withImages(
+              {
+                ...(existing ?? makeCard(targetDeck ?? '', '', '')),
+                front: front.trim(),
+                back: back.trim(),
+              },
+              frontImage,
+              backImage,
+            ),
+          ]}
+          pictures
+          onDismiss={() => setPutting(false)}
+        />
+      ) : null}
       {pictureMenu ? (
         <ActionsDialog
           title={`Picture for the ${pictureMenu}`}

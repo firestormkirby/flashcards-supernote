@@ -604,3 +604,71 @@ test('card from a screenshot: the newest one opens to mark, and the back can use
   ).toBeTruthy();
   expect(scr().getByText('From the newest screenshot')).toBeTruthy();
 });
+
+test('put in note: the card goes on the page as text, then the panel closes', async () => {
+  const m = load();
+  m.sdk.PluginCommAPI.getCurrentFilePath = jest.fn(async () => ({
+    success: true,
+    result: '/storage/emulated/0/Note/Biology.note',
+  }));
+  m.sdk.PluginCommAPI.getCurrentPageNum = jest.fn(async () => ({
+    success: true,
+    result: 2,
+  }));
+  m.sdk.PluginFileAPI.getPageSize = jest.fn(async () => ({
+    success: true,
+    result: {width: 1920, height: 2560},
+  }));
+  m.sdk.PluginNoteAPI = {
+    saveCurrentNote: jest.fn(async () => ({success: true})),
+    insertText: jest.fn(async () => ({success: true, result: true})),
+    insertImage: jest.fn(async () => ({success: true, result: true})),
+  };
+  await openApp(m);
+  act(() => {
+    m.router.setPanelIntent({
+      kind: 'newCardDraft',
+      front: 'Osmosis',
+      back: 'Water through a **membrane**',
+    });
+  });
+  await scr().findByText('New card');
+  fireEvent.press(scr().getByText('Put in note'));
+  await waitFor(() =>
+    expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled(),
+  );
+  const box = m.sdk.PluginNoteAPI.insertText.mock.calls[0][0];
+  expect(box.textContentFull).toBe('Q: Osmosis\nA: Water through a membrane');
+  expect(box.textRect.right).toBeLessThan(1920);
+  expect(m.sdk.PluginNoteAPI.saveCurrentNote).toHaveBeenCalled();
+  expect(m.sdk.PluginNoteAPI.insertImage).not.toHaveBeenCalled();
+});
+
+test('put in note from a PDF explains it needs a note', async () => {
+  const m = load();
+  m.sdk.PluginCommAPI.getCurrentFilePath = jest.fn(async () => ({
+    success: true,
+    result: '/storage/emulated/0/Document/book.pdf',
+  }));
+  m.sdk.PluginCommAPI.getCurrentPageNum = jest.fn(async () => ({
+    success: true,
+    result: 0,
+  }));
+  m.sdk.PluginNoteAPI = {insertText: jest.fn()};
+  await openApp(m);
+  fireEvent.press(scr().getByText('Starred'));
+  // Star a card first, so there is something to put in.
+  const lib = m.store.getLibrary();
+  act(() =>
+    m.store.updateLibrary((l: any) => ({
+      ...l,
+      cards: l.cards.map((c: any, i: number) =>
+        i === 0 ? {...c, starred: true} : c,
+      ),
+    })),
+  );
+  expect(lib.cards.length).toBeGreaterThan(0);
+  fireEvent.press(await scr().findByText('Put in note'));
+  expect(await scr().findByText("Couldn't put it in the note")).toBeTruthy();
+  expect(m.sdk.PluginNoteAPI.insertText).not.toHaveBeenCalled();
+});

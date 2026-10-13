@@ -1,12 +1,14 @@
 /** Helpers shared by several screens. */
 
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {View} from 'react-native';
 import * as L from '../core/library';
-import {DeckCounts, LibraryData, plural} from '../core/model';
+import {Card, DeckCounts, LibraryData, plural} from '../core/model';
 import {displayPath, ensureWritePermission, writeExport} from '../sdk/files';
+import {PutResult, putCardsInNote} from '../sdk/noteInsert';
+import {closePanel} from '../sdk/router';
 import {AppSettings} from '../storage/settingsStore';
-import {Chip, Spacer, T} from './kit';
+import {Chip, Dialog, MessageDialog, Spacer, T} from './kit';
 
 export function studyCount(c: DeckCounts): number {
   return c.due + c.new;
@@ -102,5 +104,58 @@ export function PracticeFilterPicker({
         })}
       </View>
     </View>
+  );
+}
+
+/**
+ * Puts cards in the note the panel was opened over, then closes the panel so
+ * they can be seen. If something didn't go in (not a note, too many cards
+ * for the page, a picture that failed) it says so, and closes only when it
+ * did put something in.
+ */
+export function PutInNoteDialog({
+  cards,
+  pictures,
+  onDismiss,
+}: {
+  cards: Card[];
+  pictures: boolean;
+  onDismiss: () => void;
+}) {
+  const [result, setResult] = useState<PutResult | null>(null);
+  useEffect(() => {
+    let alive = true;
+    putCardsInNote(cards, {pictures}).then(r => {
+      if (!alive) return;
+      if (r.ok && !r.message) {
+        // All in: back to the note, without this dialog waiting there next time.
+        onDismiss();
+        closePanel();
+      } else {
+        setResult(r);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // Runs once, for the cards it was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!result) {
+    return (
+      <Dialog onDismiss={() => {}}>
+        <T size={18}>Putting it in your note…</T>
+      </Dialog>
+    );
+  }
+  return (
+    <MessageDialog
+      title={result.ok ? 'Put in your note' : "Couldn't put it in the note"}
+      message={result.message}
+      onDismiss={() => {
+        onDismiss();
+        if (result.ok) closePanel();
+      }}
+    />
   );
 }
