@@ -277,3 +277,30 @@ export async function listImageDir(path: string): Promise<{
       .sort(byName),
   };
 }
+
+/** Where the Supernote saves screenshots (the top-bar Screenshot tool). */
+export const SCREENSHOT_DIR = `${STORAGE_ROOT}/SCREENSHOT`;
+
+export interface Screenshot {
+  name: string;
+  path: string;
+  /** When it was taken (file time), or 0 if unknown. */
+  time: number;
+}
+
+/**
+ * Screenshots, newest first. Ordered by file time, and by name when that is
+ * missing: the Supernote names them YYYYMMDD_HHMMSS, which sorts by date.
+ */
+export async function listScreenshots(): Promise<Screenshot[]> {
+  if (!(await RNFS.exists(SCREENSHOT_DIR))) return [];
+  const items = await RNFS.readDir(SCREENSHOT_DIR);
+  return items
+    .filter(i => i.isFile() && visible(i.name) && isImageName(i.name))
+    .map(i => ({
+      name: i.name,
+      path: i.path,
+      time: i.mtime ? new Date(i.mtime).getTime() || 0 : 0,
+    }))
+    .sort((a, b) => b.time - a.time || b.name.localeCompare(a.name));
+}

@@ -15,9 +15,11 @@ import RNFS from 'react-native-fs';
 import type {CardImage} from '../core/model';
 import {
   IMAGE_ROOTS,
+  Screenshot,
   displayPath,
   ensureReadPermission,
   listImageDir,
+  listScreenshots,
 } from '../sdk/files';
 import {measureImage} from '../sdk/pictureCapture';
 import {imageUri, imagesDir, newImageName} from '../storage/libraryStore';
@@ -94,11 +96,14 @@ export function CropScreen({
   title = 'Mark the area',
   onDone,
   onCancel,
+  actions,
 }: {
   img: CardImage;
   title?: string;
   onDone: (img: CardImage) => void;
   onCancel: () => void;
+  /** Extra top-bar buttons (e.g. "Other screenshots"). */
+  actions?: React.ReactNode;
 }) {
   const t = useTheme();
   const [area, setArea] = useState({w: 0, h: 0});
@@ -144,7 +149,7 @@ export function CropScreen({
     : 'That area is too small. Tap again to start over.';
 
   return (
-    <Screen title={title} onBack={onCancel} backLabel="✕">
+    <Screen title={title} onBack={onCancel} backLabel="✕" actions={actions}>
       <View style={{paddingHorizontal: PAD, paddingVertical: 10}}>
         <T size={16}>{hint}</T>
       </View>
@@ -293,15 +298,9 @@ export function ImageFilePicker({
   const pick = async (src: string) => {
     setBusy(true);
     try {
-      const ext = src.slice(src.lastIndexOf('.') + 1).toLowerCase() || 'png';
-      const name = newImageName('pick', ext);
-      await RNFS.copyFile(src, `${await imagesDir()}/${name}`);
-      const size = await measureImage(`${await imagesDir()}/${name}`);
-      if (!size) {
-        setMessage("That file couldn't be read as a picture.");
-        return;
-      }
-      onPicked({file: name, ...size});
+      const img = await copyPicture(src, 'pick');
+      if (img) onPicked(img);
+      else setMessage("That file couldn't be read as a picture.");
     } catch (e) {
       setMessage("That picture couldn't be copied.");
     } finally {
@@ -375,6 +374,177 @@ export function ImageFilePicker({
           </View>
         ) : null}
         <Spacer h={10} />
+      </ScrollView>
+    </Screen>
+  );
+}
+
+/**
+ * Copies a picture into the plugin's own images folder (so the card keeps it
+ * even if the original is moved or deleted) and measures it. Null if it
+ * can't be read as a picture.
+ */
+export async function copyPicture(
+  src: string,
+  prefix: string,
+): Promise<CardImage | null> {
+  const ext = src.slice(src.lastIndexOf('.') + 1).toLowerCase() || 'png';
+  const name = newImageName(prefix, ext);
+  const target = `${await imagesDir()}/${name}`;
+  await RNFS.copyFile(src, target);
+  const size = await measureImage(target);
+  return size ? {file: name, ...size} : null;
+}
+
+/** "20261013_140512.png" → "13 Oct 2026, 14:05"; other names as they are. */
+export function screenshotLabel(shot: Screenshot): string {
+  const m = shot.name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})/);
+  const date = m
+    ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
+    : shot.time
+    ? new Date(shot.time)
+    : null;
+  if (!date || Number.isNaN(date.getTime())) return shot.name;
+  const month = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][date.getMonth()];
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${date.getDate()} ${month} ${date.getFullYear()}, ${hh}:${mm}`;
+}
+
+/**
+ * A screenshot from the SCREENSHOT folder. With `newest`, the most recent one
+ * is taken straight away, with no list (speed first: screenshot something in
+ * the browser, open a note, and it's there to mark). Otherwise, a list of
+ * them, newest first, with a small picture of each.
+ */
+export function ScreenshotPicker({
+  newest,
+  onPicked,
+  onClose,
+}: {
+  newest: boolean;
+  onPicked: (img: CardImage) => void;
+  onClose: () => void;
+}) {
+  const t = useTheme();
+  const [shots, setShots] = useState<Screenshot[] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const take = async (shot: Screenshot) => {
+    setBusy(true);
+    try {
+      const img = await copyPicture(shot.path, 'shot');
+      if (img) onPicked(img);
+      else setMessage("That screenshot couldn't be read as a picture.");
+    } catch (e) {
+      console.warn('[cards] screenshot copy failed', e);
+      setMessage("That screenshot couldn't be copied.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!(await ensureReadPermission())) {
+        if (alive)
+          setMessage(
+            'Flashcards needs permission to read files. Go back, try again, and choose Allow.',
+          );
+        return;
+      }
+      let list: Screenshot[] = [];
+      try {
+        list = await listScreenshots();
+      } catch (e) {
+        console.warn('[cards] listing screenshots failed', e);
+      }
+      if (!alive) return;
+      setShots(list);
+      if (list.length === 0) {
+        setMessage(
+          'No screenshots yet. Take one with the Screenshot tool at the top of the screen (in the browser, a book or a note), then come back here.',
+        );
+      } else if (newest) {
+        take(list[0]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // Runs once: `newest` and `take` don't change while it's open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (newest && !message) {
+    return (
+      <Screen title="Screenshot" onBack={onClose} backLabel="✕">
+        <View style={{padding: PAD}}>
+          <T size={16} muted>
+            Opening your newest screenshot…
+          </T>
+        </View>
+      </Screen>
+    );
+  }
+  return (
+    <Screen
+      title="Screenshots"
+      subtitle="Newest first"
+      onBack={onClose}
+      backLabel="✕">
+      <ScrollView contentContainerStyle={{paddingBottom: 24}}>
+        {message ? (
+          <View style={{padding: PAD}}>
+            <T size={16}>{message}</T>
+          </View>
+        ) : null}
+        {(shots ?? []).map((shot, i) => (
+          <View key={shot.path}>
+            {i > 0 ? <Divider inset={PAD} /> : null}
+            <Pressable
+              accessibilityLabel={screenshotLabel(shot)}
+              onPress={busy ? undefined : () => take(shot)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: PAD,
+                paddingVertical: 10,
+              }}>
+              <Image
+                source={{uri: `file://${shot.path}`}}
+                resizeMode="contain"
+                style={{
+                  width: 90,
+                  height: 120,
+                  borderWidth: 1,
+                  borderColor: t.line,
+                  marginRight: 16,
+                }}
+              />
+              <T size={18} bold={i === 0}>
+                {i === 0
+                  ? `${screenshotLabel(shot)} · newest`
+                  : screenshotLabel(shot)}
+              </T>
+            </Pressable>
+          </View>
+        ))}
       </ScrollView>
     </Screen>
   );

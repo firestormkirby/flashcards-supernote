@@ -30,9 +30,16 @@ import {LibraryScreen, NewItemFlow} from './LibraryScreen';
 import {Nav, Route, Tab} from './nav';
 import {SearchScreen, StarredScreen} from './OtherScreens';
 import {SettingsScreen} from './SettingsScreen';
-import {CropScreen} from './Picture';
+import {CropScreen, ScreenshotPicker} from './Picture';
+import type {CardImage} from '../core/model';
 import {StudyScreen} from './StudyScreen';
-import {EmptyState, ThemeProvider, useSettings, useTheme} from './kit';
+import {
+  BarButton,
+  EmptyState,
+  ThemeProvider,
+  useSettings,
+  useTheme,
+} from './kit';
 
 const TABS: {tab: Tab | 'new' | 'close'; label: string}[] = [
   {tab: 'home', label: 'Home'},
@@ -143,7 +150,10 @@ function Panel() {
   }
 
   const route = stack[stack.length - 1];
-  const studying = route?.name === 'study' || route?.name === 'cropPicture';
+  const studying =
+    route?.name === 'study' ||
+    route?.name === 'cropPicture' ||
+    route?.name === 'screenshotCard';
 
   let screen: React.ReactNode;
   if (!route) {
@@ -206,6 +216,26 @@ function Panel() {
                   frontImage: img,
                   source: route.source,
                   note: 'The picture is on the front. Write the answer on the back, or tap Swap sides to quiz yourself the other way round.',
+                },
+              })
+            }
+          />
+        );
+        break;
+      case 'screenshotCard':
+        screen = (
+          <ScreenshotCard
+            onCancel={nav.back}
+            onDone={img =>
+              nav.replace({
+                name: 'editCard',
+                deckId: null,
+                cardId: null,
+                draft: {
+                  front: '',
+                  back: '',
+                  frontImage: img,
+                  note: 'The screenshot is on the front. Write the answer on the back, or use another part of the same screenshot: + Picture under the back.',
                 },
               })
             }
@@ -291,6 +321,10 @@ function Panel() {
             }
             nav.go({name: 'deck', id: deckId});
           }}
+          onScreenshotCard={() => {
+            setCreating(false);
+            nav.go({name: 'screenshotCard'});
+          }}
           onNewCard={() => {
             setCreating(false);
             nav.go({
@@ -359,4 +393,43 @@ function firstLaunchChores(setAskBackup: (v: boolean) => void) {
   ) {
     setAskBackup(true);
   }
+}
+
+/** The newest screenshot (or another), then mark the part for the card's front. */
+function ScreenshotCard({
+  onDone,
+  onCancel,
+}: {
+  onDone: (img: CardImage) => void;
+  onCancel: () => void;
+}) {
+  const [img, setImg] = useState<CardImage | null>(null);
+  const [newest, setNewest] = useState(true);
+  if (!img) {
+    return (
+      <ScreenshotPicker
+        key={String(newest)}
+        newest={newest}
+        onPicked={setImg}
+        onClose={onCancel}
+      />
+    );
+  }
+  return (
+    <CropScreen
+      img={img}
+      title="Screenshot for a new card"
+      actions={
+        <BarButton
+          label="Other screenshots"
+          onPress={() => {
+            setImg(null);
+            setNewest(false);
+          }}
+        />
+      }
+      onCancel={onCancel}
+      onDone={onDone}
+    />
+  );
 }

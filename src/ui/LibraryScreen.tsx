@@ -652,11 +652,13 @@ export function NewItemFlow({
   onDismiss,
   onCreatedDeck,
   onNewCard,
+  onScreenshotCard,
 }: {
   parentId: string | null;
   onDismiss: () => void;
   onCreatedDeck: (deckId: string) => void;
   onNewCard: () => void;
+  onScreenshotCard: () => void;
 }) {
   const lib = useLibrary();
   const [kind, setKind] = useState<'folder' | 'deck' | null>(null);
@@ -667,6 +669,7 @@ export function NewItemFlow({
         onDismiss={onDismiss}
         actions={[
           {label: 'Card', onPress: onNewCard},
+          {label: 'Card from screenshot', onPress: onScreenshotCard},
           {label: 'Deck', onPress: () => setKind('deck')},
           {label: 'Folder', onPress: () => setKind('folder')},
         ]}

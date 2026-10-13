@@ -16,7 +16,12 @@ import {
 } from '../core/model';
 import {toggleMarker} from '../core/richText';
 import {closePanel, waitForPicture} from '../sdk/router';
-import {CardPicture, CropScreen, ImageFilePicker} from './Picture';
+import {
+  CardPicture,
+  CropScreen,
+  ImageFilePicker,
+  ScreenshotPicker,
+} from './Picture';
 import {updateLibrary, updateLibraryAndGet} from '../storage/libraryStore';
 import {getSettings, updateSettings} from '../storage/settingsStore';
 import {Nav} from './nav';
@@ -81,7 +86,8 @@ export function CardEditScreen({
   );
   const [picture, setPicture] = useState<
     | {side: Side; step: 'file'}
-    | {side: Side; step: 'crop'; img: CardImage}
+    | {side: Side; step: 'screenshot'; newest: boolean}
+    | {side: Side; step: 'crop'; img: CardImage; screenshot?: boolean}
     | null
   >(null);
   const [picking, setPicking] = useState(false);
@@ -145,6 +151,17 @@ export function CardEditScreen({
       />
     );
   }
+  if (picture?.step === 'screenshot') {
+    return (
+      <ScreenshotPicker
+        newest={picture.newest}
+        onClose={() => setPicture(null)}
+        onPicked={img =>
+          setPicture({side: picture.side, step: 'crop', img, screenshot: true})
+        }
+      />
+    );
+  }
   if (picture?.step === 'crop') {
     return (
       <CropScreen
@@ -153,6 +170,20 @@ export function CardEditScreen({
           picture.side === 'front'
             ? 'Picture for the front'
             : 'Picture for the back'
+        }
+        actions={
+          picture.screenshot ? (
+            <BarButton
+              label="Other screenshots"
+              onPress={() =>
+                setPicture({
+                  side: picture.side,
+                  step: 'screenshot',
+                  newest: false,
+                })
+              }
+            />
+          ) : null
         }
         onCancel={() => setPicture(null)}
         onDone={img => {
@@ -417,6 +448,8 @@ export function CardEditScreen({
             },
             samePage: (side, page) =>
               setPicture({side, step: 'crop', img: {...page, crop: undefined}}),
+            fromScreenshot: side =>
+              setPicture({side, step: 'screenshot', newest: true}),
             fromFile: side => setPicture({side, step: 'file'}),
           })}
         />
@@ -509,8 +542,9 @@ export function deckNamedAfter(lib: LibraryData, path: string): string | null {
 
 /**
  * Where a picture can come from: a page (Picture card on the toolbar, so the
- * capture still happens at button-press time), the same page as the other
- * side's picture when that one is a page capture, or an image file.
+ * capture still happens at button-press time), the newest screenshot, the
+ * same page or screenshot as the other side's picture (another part of it),
+ * or an image file.
  */
 function pictureSources(
   side: Side,
@@ -519,19 +553,28 @@ function pictureSources(
   on: {
     fromPage: (side: Side) => void;
     samePage: (side: Side, page: CardImage) => void;
+    fromScreenshot: (side: Side) => void;
     fromFile: (side: Side) => void;
   },
 ): {label: string; onPress: () => void}[] {
   const other = side === 'front' ? backImage : frontImage;
+  const otherSide = side === 'front' ? 'back' : 'front';
+  // A page or a screenshot has more on it to use; a lasso picture is exactly
+  // what was lassoed, and a chosen file may be anything.
   const otherIsPage = !!other && other.file.startsWith('page-');
+  const otherIsShot = !!other && other.file.startsWith('shot-');
   return [
     {label: 'From a page (Picture card)', onPress: () => on.fromPage(side)},
-    ...(otherIsPage
+    {
+      label: 'From the newest screenshot',
+      onPress: () => on.fromScreenshot(side),
+    },
+    ...(otherIsPage || otherIsShot
       ? [
           {
-            label: `From the same page as the ${
-              side === 'front' ? 'back' : 'front'
-            }`,
+            label: `From the same ${
+              otherIsShot ? 'screenshot' : 'page'
+            } as the ${otherSide}`,
             onPress: () => on.samePage(side, other!),
           },
         ]

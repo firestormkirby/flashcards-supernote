@@ -556,3 +556,51 @@ test('display size makes text larger; the contact page shows where to write', as
   fireEvent.press(scr().getByText('Report a bug or suggest a feature'));
   expect(await scr().findByText('sebastiancraftco@gmail.com')).toBeTruthy();
 });
+
+test('card from a screenshot: the newest one opens to mark, and the back can use another part', async () => {
+  const m = load();
+  const {Image} = require('react-native');
+  jest
+    .spyOn(Image, 'getSize')
+    .mockImplementation((_uri: any, ok: any) => ok(1404, 1872));
+  const file = (name: string, mtime: string) => ({
+    name,
+    path: `/storage/emulated/0/SCREENSHOT/${name}`,
+    mtime: new Date(mtime),
+    isFile: () => true,
+    isDirectory: () => false,
+  });
+  m.RNFS.exists.mockImplementation(async () => true);
+  m.RNFS.readDir.mockImplementation(async (dir: string) =>
+    dir.endsWith('SCREENSHOT')
+      ? [
+          file('20261001_090000.png', '2026-10-01T09:00:00'),
+          file('20261013_140512.png', '2026-10-13T14:05:12'),
+        ]
+      : [],
+  );
+  m.RNFS.copyFile = jest.fn(async () => undefined);
+  await openApp(m);
+
+  fireEvent.press(scr().getByText('+ New'));
+  fireEvent.press(await scr().findByText('Card from screenshot'));
+  await scr().findByText('Screenshot for a new card');
+  // The newest one was taken, with no list in between.
+  expect(m.RNFS.copyFile).toHaveBeenCalledWith(
+    '/storage/emulated/0/SCREENSHOT/20261013_140512.png',
+    expect.stringMatching(/\/shot-.*\.png$/),
+  );
+  // "Other screenshots" lists them, newest first.
+  fireEvent.press(scr().getByText('Other screenshots'));
+  expect(await scr().findByText('13 Oct 2026, 14:05 · newest')).toBeTruthy();
+  fireEvent.press(scr().getByText('1 Oct 2026, 09:00'));
+  await scr().findByText('Screenshot for a new card');
+  fireEvent.press(scr().getByText('Use whole picture'));
+
+  await scr().findByText('New card');
+  fireEvent.press(scr().getByLabelText('Add a picture')); // the back's
+  expect(
+    await scr().findByText('From the same screenshot as the front'),
+  ).toBeTruthy();
+  expect(scr().getByText('From the newest screenshot')).toBeTruthy();
+});

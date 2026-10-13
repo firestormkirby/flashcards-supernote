@@ -35,6 +35,8 @@ export type Route =
     }
   /** Mark a region of a captured page; the result opens as a new card. */
   | {name: 'cropPicture'; image: CardImage; source?: string}
+  /** + New › Card from screenshot: the newest one (or a chosen one), marked, as a new card. */
+  | {name: 'screenshotCard'}
   /** Move decks / folders (all from the same place) into another folder. */
   | {name: 'moveItems'; deckIds: string[]; folderIds: string[]};
 
