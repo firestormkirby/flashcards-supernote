@@ -14,10 +14,14 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
   - **Practice** goes through any cards at any time without changing your schedule.
 - **Full-screen studying.** Only the card is on screen. Tap the middle to see the answer, the right side for the next card, the left side for the previous one.
 - **Choose which cards:** all, or any mix of due, new and starred.
-- **Stars, search, shuffle, dark mode, and three text sizes.**
+- **Stars, search, shuffle, dark mode, and three text sizes.** Card text centered or left-aligned, and a **Display size** (Default, Large, Larger, or Custom) that makes everything bigger.
+- **Bold and italics.** Write `**bold**` or `*italics*` on a card, or select words and tap **B** or **I** above the back.
+- **Double-tap a folder or deck** to go straight into its cards, full screen, in Practice or Study (your choice). Full screen can also show **Edit**, **Star** and **List** buttons once the answer shows.
 - **Make card from handwriting.** In a note, or on a PDF you've written on, lasso what you wrote and tap **Make card** in the lasso toolbar. Flashcards reads the writing and opens it as a new card. Write `front :: back` to fill in both sides at once.
 - **Make card from PDFs and ebooks.** In the document reader, select text and tap **Make card** in the selection menu. The text goes on the front (line breaks and hyphenation from the page are tidied up); type the answer, or tap **Swap sides** if you selected the answer.
 - **Picture cards.** Tap **Picture card** in the toolbar (in a PDF, ebook or note), then tap two corners of the part of the page you want, such as a diagram, a figure or a map. It goes on the front of a new card. Or lasso a drawing, sticker or inserted picture and tap **Picture card** in the lasso toolbar to use exactly that. In the editor, **+ Picture** adds a picture to either side: **From a page** closes the panel so you can go to any page and tap **Picture card** (or lasso something), and the picture comes back to the same card; or use the same page as the other side, or an image file (Supernote screenshots are in `SCREENSHOT`). No text selection needed.
+- **Card from a screenshot.** For things a plugin can't open, such as a web page in the browser: take a screenshot with the top-bar tool, then in Flashcards tap **+ New › Card from screenshot**. The newest screenshot opens straight away; mark the part you want. **+ Picture** can use another part of it for the back, and **Other screenshots** lists the rest.
+- **Put in note.** Paste a card into the note you're in: tap **Put in note** on its answer while studying, or in the card editor. Its text goes in as a text box (as `Q:`/`A:`, so **Make card** can turn it back into a card) and its pictures as pictures, cut to the part you marked. From **Starred**, all your starred cards go in as one list.
 - **The right deck, without asking.** A new card starts in the deck you're in, else a deck named like the note or document (or its folder), else the deck you last saved into. In the deck chooser the current deck is shown inverted, and **+ New deck** makes one on the spot.
 - **Study from anywhere.** The Flashcards button is in both the note toolbar and the document reader's toolbar.
 - **Write cards on the device**, or write them on a computer and import them.
@@ -70,6 +74,8 @@ branches of government?
 A: Legislative, executive,
 and judicial.
 ```
+
+A blank line *inside* an answer is kept, as long as the next line doesn't start a new card. **Bold** and *italics* are written `**bold**` and `*italics*`.
 
 **From a spreadsheet**: save it as `.csv`. Column A is the front, column B the back:
 
@@ -126,22 +132,28 @@ src/core/                pure logic, ported from the Android app
   deckParser.ts          the text/CSV deck formats
   library.ts             folders, decks, cards, import merge, queues, search, export
   codec.ts               saved-library format (same as the Android app)
+  anki.ts                Anki plain-text import (same rules as the Android app) and export
+  richText.ts            **bold** / *italics*
+  noteText.ts            cards as text for a note page, and the text box size
 src/storage/             library file (plugin private dir) and settings
-src/sdk/                 Supernote glue: buttons, shared-folder files, lasso → OCR
+src/sdk/                 Supernote glue: buttons, shared-folder files, lasso → OCR,
+                         page capture, screenshots, Put in note
 src/ui/                  screens
+android/app/…/com/flashcards/picture/   native module: cut a picture to its marked area
 ```
 
 ## Differences from the Android app
 
 - **Export is a folder of text files instead of a .zip**, since a Supernote has no zip tool. The paths inside are the same. Importing a .zip isn't supported; unzip it on a computer first.
 - **Make card** is new and exists only here: lasso → handwriting recognition → new card in notes and PDFs, and selected PDF/EPUB text → new card in the document reader.
+- **Card from a screenshot** and **Put in note** are new, and exist only here.
 - **Picture cards** are new. They're saved with the library and kept in backups; the Android app reads such a library but ignores the pictures, and text exports write `[picture]` for a picture-only side.
 - **Full backup and restore** (with progress) is new. A plugin's private data may not survive being reinstalled, so this is the safety net.
 - There is no Wi-Fi sync and no bottom-bar customisation.
 
 ## Status
 
-**Version 1.0.0.** All logic and UI flow tests pass, and it has been tested on a Supernote Manta:
+**Version 1.1.0.** All logic and UI flow tests pass. Version 1.0.0 was tested on a Supernote Manta:
 
 - ✅ The panel opens from the toolbar and **Close ✕** returns to the note.
 - ✅ **Make card** from handwriting, in a note and on a PDF.
@@ -150,12 +162,18 @@ src/ui/                  screens
 - ✅ Making a deck from the deck chooser, and new cards defaulting to the last-used deck.
 - ✅ The library and settings survive updating the plugin (installing a new version over the old one).
 
-Not yet confirmed on a device, so reports are welcome:
+New in 1.1.0, and still to be confirmed on a device: **Card from a screenshot**, **Put in note** (text and pictures), bold and italics, double-tap, the full-screen buttons, Display size, and the "New in 1.1" tips after updating.
+
+Also not yet confirmed on a device, so reports are welcome:
 
 - **Picture card** in a reflowable ebook (EPUB) at a non-default font size. The plugin renders the page through the SDK rather than taking a screenshot, so the image may not match the screen exactly. sn-clipper uses a native screenshot module for that case; it can be added here if needed.
 - **Picture card** on the lasso toolbar (lassoed drawings, stickers and pictures).
 - Import from `Document`/`INBOX`, Export to `EXPORT`, and the Anki import and export, on the device itself (they are covered by the off-device tests).
 - The Nomad.
+
+## Bugs and ideas
+
+Found a bug, or have an idea? Email **sebastiancraftco@gmail.com**, or [open an issue](https://github.com/firestormkirby/flashcards-supernote/issues). In the plugin, **Settings › Contact** shows the same, and what helps in a bug report: your Flashcards version, your Supernote and its software version, and the steps that led to it.
 
 ## Credits
 
@@ -163,5 +181,6 @@ Not yet confirmed on a device, so reports are welcome:
 - [Mudita Mindful Design](https://github.com/mudita/MMD), which inspired the original's e-ink design. Neither app is affiliated with or endorsed by Mudita.
 - The [FSRS](https://github.com/open-spaced-repetition) spaced-repetition algorithm.
 - [sn-flashcards](https://github.com/taoist22/sn-flashcards) by taoist22 (MIT), whose Anki plain-text import and export, and note-name deck suggestions, this plugin's versions are modelled on.
+- [supernote-insert-screenshot-plugin](https://github.com/philips/supernote-insert-screenshot-plugin) by Brandon Philips, whose "newest screenshot first, no dialogs" design shaped Card from a screenshot, and whose way of inserting into a note and cropping with a small native module shaped Put in note. No code was copied.
 - [sn-clipper](https://github.com/vmnair/sn-clipper) by Vinod Nair, whose on-device findings shaped Picture card: which SDK calls render a document page, and that a note page should be rendered by layer to leave out its ruled template. No code was copied.
 - Built with the help of Claude Code.
