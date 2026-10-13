@@ -24,7 +24,7 @@ import {
 } from '../storage/settingsStore';
 import {CardEditScreen, MoveItemsScreen} from './CardEditor';
 import {DeckScreen, AllCardsScreen} from './DeckScreen';
-import {BackupDialog, WelcomeDialog} from './Dialogs';
+import {BackupDialog, WELCOME_VERSION, WelcomeDialog} from './Dialogs';
 import {ImportScreen} from './ImportScreen';
 import {LibraryScreen, NewItemFlow} from './LibraryScreen';
 import {Nav, Route, Tab} from './nav';
@@ -258,7 +258,7 @@ function Panel() {
                 }}
                 style={{
                   flex: 1,
-                  minHeight: 60,
+                  minHeight: 60 * t.scale,
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: selected ? t.fg : t.bg,
@@ -268,7 +268,7 @@ function Panel() {
                   adjustsFontSizeToFit
                   style={{
                     color: selected ? t.onFg : t.fg,
-                    fontSize: 15,
+                    fontSize: 15 * t.scale,
                     fontWeight: selected ? '700' : '400',
                   }}>
                   {item.label}
@@ -303,13 +303,23 @@ function Panel() {
         />
       ) : null}
 
-      {!settings.seenWelcome ? (
+      {!settings.seenWelcome ||
+      settings.welcomeVersionSeen < WELCOME_VERSION ? (
         <WelcomeDialog
-          onDone={() => updateSettings(s => ({...s, seenWelcome: true}))}
+          whatsNew={settings.seenWelcome}
+          onDone={() =>
+            updateSettings(s => ({
+              ...s,
+              seenWelcome: true,
+              welcomeVersionSeen: WELCOME_VERSION,
+            }))
+          }
         />
       ) : null}
 
-      {askBackup && settings.seenWelcome ? (
+      {askBackup &&
+      settings.seenWelcome &&
+      settings.welcomeVersionSeen >= WELCOME_VERSION ? (
         <BackupDialog
           everyDays={settings.backupEveryDays}
           onLater={() => {

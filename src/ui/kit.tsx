@@ -10,6 +10,8 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -25,6 +27,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import {LibraryData} from '../core/model';
+import {richRuns} from '../core/richText';
 import {getLibrary, subscribeLibrary} from '../storage/libraryStore';
 import {
   AppSettings,
@@ -51,6 +54,8 @@ export interface Theme {
   line: string;
   /** Text on a filled (fg-coloured) button. */
   onFg: string;
+  /** Display size: 1 is normal; text and touch targets grow with it. */
+  scale: number;
 }
 
 const LIGHT: Theme = {
@@ -59,6 +64,7 @@ const LIGHT: Theme = {
   muted: '#555555',
   line: '#000000',
   onFg: '#FFFFFF',
+  scale: 1,
 };
 const DARK: Theme = {
   bg: '#000000',
@@ -66,16 +72,19 @@ const DARK: Theme = {
   muted: '#BBBBBB',
   line: '#FFFFFF',
   onFg: '#000000',
+  scale: 1,
 };
 
 const ThemeContext = createContext<Theme>(LIGHT);
 
 export function ThemeProvider({children}: {children: React.ReactNode}) {
   const s = useSettings();
+  const theme = useMemo(
+    () => ({...(s.darkMode ? DARK : LIGHT), scale: s.displayScale / 100}),
+    [s.darkMode, s.displayScale],
+  );
   return (
-    <ThemeContext.Provider value={s.darkMode ? DARK : LIGHT}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>
   );
 }
 
@@ -84,6 +93,8 @@ export function useTheme(): Theme {
 }
 
 export const PAD = 20;
+/** How long a single tap waits for a second one, on rows that take a double-tap. */
+export const DOUBLE_TAP_MS = 300;
 
 // ---------------------------------------------------------------- text
 
@@ -95,6 +106,7 @@ export function T({
   center,
   style,
   lines,
+  selectable,
 }: {
   children: React.ReactNode;
   size?: number;
@@ -103,16 +115,19 @@ export function T({
   center?: boolean;
   style?: StyleProp<TextStyle>;
   lines?: number;
+  /** Can be selected (and copied) with a long press. */
+  selectable?: boolean;
 }) {
   const t = useTheme();
   return (
     <Text
       numberOfLines={lines}
+      selectable={selectable}
       style={[
         {
           color: muted ? t.muted : t.fg,
-          fontSize: size,
-          lineHeight: Math.round(size * 1.3),
+          fontSize: size * t.scale,
+          lineHeight: Math.round(size * t.scale * 1.3),
           fontWeight: bold ? '700' : '400',
           textAlign: center ? 'center' : 'left',
         },
@@ -120,6 +135,34 @@ export function T({
       ]}>
       {children}
     </Text>
+  );
+}
+
+/**
+ * Card text with **bold** and *italics* drawn as such and the markers hidden.
+ * Takes the same props as T; the text must be a string.
+ */
+export function RichT({
+  children,
+  ...props
+}: Omit<React.ComponentProps<typeof T>, 'children'> & {children: string}) {
+  const runs = richRuns(children);
+  if (runs.length === 1 && !runs[0].bold && !runs[0].italic) {
+    return <T {...props}>{children}</T>;
+  }
+  return (
+    <T {...props}>
+      {runs.map((r, i) => (
+        <Text
+          key={i}
+          style={{
+            fontWeight: r.bold || props.bold ? '700' : '400',
+            fontStyle: r.italic ? 'italic' : 'normal',
+          }}>
+          {r.text}
+        </Text>
+      ))}
+    </T>
   );
 }
 
@@ -150,7 +193,7 @@ export function Button({
       style={[
         styles.button,
         {
-          minHeight: compact ? 48 : 58,
+          minHeight: (compact ? 48 : 58) * t.scale,
           borderColor: disabled ? t.muted : t.line,
           backgroundColor: filled ? t.fg : t.bg,
           borderStyle: disabled ? 'dashed' : 'solid',
@@ -160,7 +203,7 @@ export function Button({
       <Text
         style={{
           color: filled ? t.onFg : disabled ? t.muted : t.fg,
-          fontSize: compact ? 16 : 18,
+          fontSize: (compact ? 16 : 18) * t.scale,
           fontWeight: '700',
           textAlign: 'center',
         }}>
@@ -192,6 +235,8 @@ export function BarButton({
       style={[
         styles.barButton,
         {
+          minHeight: 48 * t.scale,
+          minWidth: 48 * t.scale,
           borderColor: selected ? t.line : 'transparent',
           backgroundColor: selected ? t.fg : 'transparent',
         },
@@ -199,7 +244,7 @@ export function BarButton({
       <Text
         style={{
           color: selected ? t.onFg : t.fg,
-          fontSize: 20,
+          fontSize: 20 * t.scale,
           fontWeight: '700',
         }}>
         {label}
@@ -225,12 +270,16 @@ export function Chip({
       onPress={onPress}
       style={[
         styles.chip,
-        {borderColor: t.line, backgroundColor: selected ? t.fg : t.bg},
+        {
+          borderColor: t.line,
+          backgroundColor: selected ? t.fg : t.bg,
+          minHeight: 44 * t.scale,
+        },
       ]}>
       <Text
         style={{
           color: selected ? t.onFg : t.fg,
-          fontSize: 16,
+          fontSize: 16 * t.scale,
           fontWeight: selected ? '700' : '400',
         }}>
         {label}
@@ -339,6 +388,7 @@ export function Row({
   titleLines = 2,
   pad = PAD,
   selected,
+  onDoubleTap,
 }: {
   title: string;
   subtitle?: string | null;
@@ -352,18 +402,45 @@ export function Row({
   pad?: number;
   /** Drawn inverted (light on dark), like a selected tab: the strongest contrast e-ink has. */
   selected?: boolean;
+  /**
+   * A second tap soon after the first. With this set, a single tap waits a
+   * moment (DOUBLE_TAP_MS) to be sure no second one is coming, as on Android.
+   */
+  onDoubleTap?: () => void;
 }) {
   const t = useTheme();
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (pending.current) clearTimeout(pending.current);
+    },
+    [],
+  );
+  const press =
+    onDoubleTap && onPress
+      ? () => {
+          if (pending.current) {
+            clearTimeout(pending.current);
+            pending.current = null;
+            onDoubleTap();
+          } else {
+            pending.current = setTimeout(() => {
+              pending.current = null;
+              onPress();
+            }, DOUBLE_TAP_MS);
+          }
+        }
+      : onPress;
   const ink = selected ? {color: t.onFg} : undefined;
   return (
     <Pressable
-      onPress={onPress}
+      onPress={press}
       onLongPress={onLongPress}
       disabled={!onPress && !onLongPress}
       accessibilityState={selected ? {selected: true} : undefined}
       style={[
         styles.row,
-        {paddingHorizontal: pad},
+        {paddingHorizontal: pad, minHeight: 64 * t.scale},
         selected ? {backgroundColor: t.fg} : null,
       ]}>
       {lead ? (
@@ -660,6 +737,8 @@ export function TextInputDialog({
   );
 }
 
+export type Selection = {start: number; end: number};
+
 export function Input({
   value,
   onChangeText,
@@ -668,6 +747,8 @@ export function Input({
   autoFocus,
   onSubmitEditing,
   minHeight,
+  onSelectionChange,
+  selection,
 }: {
   value: string;
   onChangeText: (v: string) => void;
@@ -676,11 +757,25 @@ export function Input({
   autoFocus?: boolean;
   onSubmitEditing?: () => void;
   minHeight?: number;
+  /** Where the cursor or selection is, as the user moves it. */
+  onSelectionChange?: (sel: Selection) => void;
+  /**
+   * Put the selection here (e.g. around words just made bold). Applied once:
+   * pass a new object to move it again; undefined leaves it to the user.
+   */
+  selection?: Selection;
 }) {
   const t = useTheme();
+  const [forced, setForced] = useState<Selection | undefined>(selection);
+  useEffect(() => setForced(selection), [selection]);
   return (
     <TextInput
       value={value}
+      selection={forced}
+      onSelectionChange={e => {
+        setForced(undefined);
+        onSelectionChange?.(e.nativeEvent.selection);
+      }}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={t.muted}
@@ -694,7 +789,8 @@ export function Input({
         {
           color: t.fg,
           borderColor: t.line,
-          minHeight: minHeight ?? (multiline ? 120 : 52),
+          fontSize: 18 * t.scale,
+          minHeight: (minHeight ?? (multiline ? 120 : 52)) * t.scale,
         },
       ]}
     />

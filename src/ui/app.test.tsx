@@ -92,7 +92,7 @@ test('full-screen study: tap middle to reveal, right side rates Good, left side 
         c.deckId ===
         m.store.getLibrary().decks.find(d => d.name === 'Trivia Night')!.id,
     ).length;
-  fireEvent.press(scr().getByText(`Study · ${total}`));
+  fireEvent.press(await scr().findByText(`Study · ${total}`));
   fireEvent.press(await scr().findByText('Okay')); // first-session tips
   await scr().findByText(`${total} left`);
 
@@ -125,8 +125,8 @@ test('regular view: show answer, rate with interval hints, star, finish', async 
   await openApp(m);
   fireEvent.press(scr().getByText('Examples'));
   fireEvent.press(await scr().findByText('Spanish Basics'));
-  fireEvent.press(scr().getByText('Shuffle')); // off, so the order is the file's
-  fireEvent.press(scr().getByText(/^Study · /));
+  fireEvent.press(await scr().findByText('Shuffle')); // off, so the order is the file's
+  fireEvent.press(await scr().findByText(/^Study · /));
   fireEvent.press(await scr().findByText('Okay'));
   fireEvent.press(await scr().findByText('Regular view'));
   fireEvent.press(await scr().findByText('Show answer'));
@@ -476,4 +476,83 @@ test('a card that stops waiting gives Picture card back to new cards', async () 
   fireEvent.press(await scr().findByText('From a page (Picture card)'));
   fireEvent.press(await scr().findByText('Cancel'));
   expect(m.router.takePictureWaiter()).toBeNull();
+});
+
+test('bold and italics: markers hidden on the card and in lists; B wraps the selection', async () => {
+  const m = load();
+  await openApp(m);
+  fireEvent.press(scr().getByText('+ New'));
+  fireEvent.press(await scr().findByText('Card'));
+  fireEvent.press(await scr().findByText('Choose a deck'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+  const [front, back] = scr().getAllByPlaceholderText(
+    /Question or term|Answer/,
+  );
+  fireEvent.changeText(front, 'The **mens rea** is *malice*');
+  fireEvent.changeText(back, 'one two');
+  fireEvent(back, 'selectionChange', {
+    nativeEvent: {selection: {start: 4, end: 7}},
+  });
+  fireEvent.press(scr().getByLabelText('Bold'));
+  expect(scr().getByDisplayValue('one **two**')).toBeTruthy();
+  fireEvent.press(scr().getByText('Save card'));
+  await waitFor(() =>
+    expect(m.store.getLibrary().cards.some(c => c.back === 'one **two**')).toBe(
+      true,
+    ),
+  );
+  // In lists (here, search results) the markers are gone.
+  fireEvent.press(await scr().findByText('Search'));
+  fireEvent.changeText(
+    await scr().findByPlaceholderText('Search cards, decks, and folders'),
+    'mens',
+  );
+  expect(await scr().findByText('The mens rea is malice')).toBeTruthy();
+});
+
+test('double-tap a deck: straight into Practice, full screen', async () => {
+  const m = load();
+  await openApp(m);
+  const row = scr().getByText('Trivia Night');
+  fireEvent.press(row);
+  fireEvent.press(row);
+  fireEvent.press(await scr().findByText('Okay')); // first-session tips
+  expect(await scr().findByText('Regular view')).toBeTruthy();
+  expect(scr().getByText(/^\d+ left$/)).toBeTruthy();
+});
+
+test('after an update, existing users see what is new, once', async () => {
+  const m = load();
+  const storage = require('@react-native-async-storage/async-storage');
+  const AsyncStorage = storage.default ?? storage;
+  await AsyncStorage.setItem(
+    'cards:settings:v1',
+    JSON.stringify({seenWelcome: true, seededExamples: true}),
+  );
+  current = m;
+  ({act, fireEvent, waitFor} = m.rtl);
+  m.rtl.render(m.React.createElement(m.App));
+  expect(await scr().findByText('New in Flashcards 1.1')).toBeTruthy();
+  expect(scr().queryByText('Welcome to Flashcards')).toBeNull();
+  fireEvent.press(scr().getByText('Okay'));
+  await waitFor(() =>
+    expect(scr().queryByText('New in Flashcards 1.1')).toBeNull(),
+  );
+  const saved = JSON.parse(await AsyncStorage.getItem('cards:settings:v1'));
+  expect(saved.welcomeVersionSeen).toBe(2);
+});
+
+test('display size makes text larger; the contact page shows where to write', async () => {
+  const m = load();
+  await openApp(m);
+  const {StyleSheet} = require('react-native');
+  const sizeOf = (el: any) => StyleSheet.flatten(el.props.style).fontSize;
+  fireEvent.press(scr().getByText('Settings'));
+  const before = sizeOf(await scr().findByText('Display size'));
+  fireEvent.press(scr().getByText('Larger'));
+  await waitFor(() =>
+    expect(sizeOf(scr().getByText('Display size'))).toBeCloseTo(before * 1.3),
+  );
+  fireEvent.press(scr().getByText('Report a bug or suggest a feature'));
+  expect(await scr().findByText('sebastiancraftco@gmail.com')).toBeTruthy();
 });

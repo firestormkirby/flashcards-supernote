@@ -14,6 +14,7 @@ import {
   makeCard,
   plural,
 } from '../core/model';
+import {toggleMarker} from '../core/richText';
 import {closePanel, waitForPicture} from '../sdk/router';
 import {CardPicture, CropScreen, ImageFilePicker} from './Picture';
 import {updateLibrary, updateLibraryAndGet} from '../storage/libraryStore';
@@ -31,6 +32,7 @@ import {
   Row,
   RowSeparator,
   Screen,
+  Selection,
   Spacer,
   T,
   TextInputDialog,
@@ -88,6 +90,15 @@ export function CardEditScreen({
   /** Waiting for Picture card to be tapped on a page, for this side. */
   const [waitingFor, setWaitingFor] = useState<Side | null>(null);
   const [pictureNote, setPictureNote] = useState<string | null>(null);
+  // Where the cursor is in the back, for the B and I buttons.
+  const [backSel, setBackSel] = useState<Selection>({start: 0, end: 0});
+  const [forcedBackSel, setForcedBackSel] = useState<Selection | undefined>();
+  const applyMarker = (marker: string) => {
+    const r = toggleMarker(back, backSel, marker);
+    setBack(r.text);
+    setBackSel(r.selection);
+    setForcedBackSel(r.selection);
+  };
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
 
@@ -315,6 +326,17 @@ export function CardEditScreen({
           <T size={14} muted style={{flex: 1}}>
             Back
           </T>
+          {/* Bold and italics for the selected words (upstream keeps them on the back only). */}
+          <BarButton
+            label="B"
+            accessibilityLabel="Bold"
+            onPress={() => applyMarker('**')}
+          />
+          <BarButton
+            label="I"
+            accessibilityLabel="Italics"
+            onPress={() => applyMarker('*')}
+          />
           {front !== '' || back !== '' || frontImage || backImage ? (
             <BarButton
               label="Swap sides"
@@ -332,6 +354,8 @@ export function CardEditScreen({
         <Input
           value={back}
           onChangeText={setBack}
+          onSelectionChange={setBackSel}
+          selection={forcedBackSel}
           multiline
           placeholder="Answer"
           autoFocus={

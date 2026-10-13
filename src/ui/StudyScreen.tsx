@@ -34,6 +34,7 @@ import {
   Divider,
   EmptyState,
   PAD,
+  RichT,
   Row,
   Screen,
   Spacer,
@@ -103,6 +104,8 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
   const [history, setHistory] = useState<Step[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  // A double-tap opens full screen this once, whatever the usual view is.
+  const [forcedFullScreen, setForcedFullScreen] = useState(!!route.fullScreen);
 
   // Look the card up in live data so edits show immediately.
   const current: Card | undefined = queue.length
@@ -209,7 +212,7 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
     />
   ) : null;
 
-  if (current && settings.studyFullScreen) {
+  if (current && (settings.studyFullScreen || forcedFullScreen)) {
     return (
       <View style={{flex: 1}}>
         <FullScreenCard
@@ -218,14 +221,28 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
           left={left}
           frontSize={FRONT_SIZES[settings.frontSize]}
           backSize={BACK_SIZES[settings.backSize]}
+          leftAlign={settings.leftAlignCards}
           revealed={revealed}
           onMiddle={() => !revealed && setRevealed(true)}
           onLeft={previous}
           onRight={() => nextCard(current)}
-          onRegularView={() =>
-            updateSettings(s => ({...s, studyFullScreen: false}))
-          }
+          onRegularView={() => {
+            setForcedFullScreen(false);
+            updateSettings(s => ({...s, studyFullScreen: false}));
+          }}
           onEnd={nav.back}
+          // Customization › Full-screen options; shown once the answer shows.
+          onEdit={
+            settings.fullScreenEdit ? () => setEditingId(current.id) : null
+          }
+          onStar={
+            settings.fullScreenStar
+              ? () => updateLibrary(l => L.toggleStar(l, current.id))
+              : null
+          }
+          onAllCards={
+            settings.fullScreenAllCards ? () => setChoosing(true) : null
+          }
         />
         {tips}
       </View>
@@ -292,6 +309,7 @@ export function StudyScreen({route, nav}: {route: StudyRoute; nav: Nav}) {
                 frontSize={FRONT_SIZES[settings.frontSize]}
                 backSize={BACK_SIZES[settings.backSize]}
                 revealed={revealed}
+                leftAlign={settings.leftAlignCards}
               />
             </CardScroll>
           </Pressable>
@@ -437,11 +455,13 @@ function CardText({
   frontSize,
   backSize,
   revealed,
+  leftAlign,
 }: {
   card: Card;
   frontSize: number;
   backSize: number;
   revealed: boolean;
+  leftAlign: boolean;
 }) {
   const t = useTheme();
   const window = useWindowDimensions();
@@ -449,20 +469,23 @@ function CardText({
   const picW = window.width - 56;
   const picH = window.height * 0.4;
   return (
-    <View style={{alignItems: 'center'}}>
+    <View style={{alignItems: leftAlign ? 'flex-start' : 'center'}}>
       {card.frontImage ? (
         <View style={{marginBottom: card.front ? 18 : 0}}>
           <CardPicture img={card.frontImage} maxWidth={picW} maxHeight={picH} />
         </View>
       ) : null}
       {card.front ? (
-        <T
+        <RichT
           size={frontSize}
           bold
-          center
-          style={{lineHeight: Math.round(frontSize * 1.25)}}>
+          center={!leftAlign}
+          style={{
+            lineHeight: Math.round(frontSize * t.scale * 1.25),
+            alignSelf: leftAlign ? 'stretch' : undefined,
+          }}>
           {card.front}
-        </T>
+        </RichT>
       ) : null}
       {revealed ? (
         <>
@@ -484,12 +507,15 @@ function CardText({
             </View>
           ) : null}
           {card.back ? (
-            <T
+            <RichT
               size={backSize}
-              center
-              style={{lineHeight: Math.round(backSize * 1.3)}}>
+              center={!leftAlign}
+              style={{
+                lineHeight: Math.round(backSize * t.scale * 1.3),
+                alignSelf: leftAlign ? 'stretch' : undefined,
+              }}>
               {card.back}
-            </T>
+            </RichT>
           ) : null}
         </>
       ) : null}
@@ -502,23 +528,32 @@ function FullScreenCard({
   left,
   frontSize,
   backSize,
+  leftAlign,
   revealed,
   onMiddle,
   onLeft,
   onRight,
   onRegularView,
   onEnd,
+  onEdit,
+  onStar,
+  onAllCards,
 }: {
   card: Card;
   left: number;
   frontSize: number;
   backSize: number;
+  leftAlign: boolean;
   revealed: boolean;
   onMiddle: () => void;
   onLeft: () => void;
   onRight: () => void;
   onRegularView: () => void;
   onEnd: () => void;
+  /** Optional buttons (Customization › Full-screen options), shown with the answer. */
+  onEdit: (() => void) | null;
+  onStar: (() => void) | null;
+  onAllCards: (() => void) | null;
 }) {
   const t = useTheme();
   const window = useWindowDimensions();
@@ -539,6 +574,7 @@ function FullScreenCard({
             frontSize={frontSize}
             backSize={backSize}
             revealed={revealed}
+            leftAlign={leftAlign}
           />
         </CardScroll>
       </Pressable>
@@ -557,6 +593,23 @@ function FullScreenCard({
             {`${left} left`}
           </T>
         </View>
+        {revealed && onAllCards ? (
+          <BarButton
+            label="List"
+            accessibilityLabel="Go to a card"
+            onPress={onAllCards}
+          />
+        ) : null}
+        {revealed && onStar ? (
+          <BarButton
+            label={card.starred ? '★' : '☆'}
+            accessibilityLabel={card.starred ? 'Unstar' : 'Star'}
+            onPress={onStar}
+          />
+        ) : null}
+        {revealed && onEdit ? (
+          <BarButton label="Edit" onPress={onEdit} />
+        ) : null}
         <BarButton label="Regular view" onPress={onRegularView} />
       </View>
     </View>

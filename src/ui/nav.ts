@@ -18,6 +18,8 @@ export type Route =
       cardIds?: string[];
       /** For Study: only the due / new cards this All / Due / New / Starred choice picks. */
       filters: PracticeFilter[];
+      /** Open full screen this time, whatever the usual view is (a double-tap). */
+      fullScreen?: boolean;
     }
   | {name: 'allCards'; deckId: string}
   /**

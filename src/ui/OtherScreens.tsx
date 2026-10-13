@@ -42,6 +42,7 @@ export function StarredScreen({nav}: {nav: Nav}) {
                 practice: true,
                 cardIds: cards.map(c => c.id),
                 filters: [],
+                fullScreen: true,
               })
             }
           />
@@ -86,6 +87,7 @@ export function StarredScreen({nav}: {nav: Nav}) {
                     practice: true,
                     cardIds: cards.map(c => c.id),
                     filters: [],
+                    fullScreen: true,
                   })
                 }
               />

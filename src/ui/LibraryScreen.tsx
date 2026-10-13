@@ -9,7 +9,12 @@ import {FlatList, View} from 'react-native';
 import * as L from '../core/library';
 import {Deck, DeckCounts, Folder, LibraryData, plural} from '../core/model';
 import {updateLibrary, updateLibraryAndGet} from '../storage/libraryStore';
-import {isManual, updateSettings, withManual} from '../storage/settingsStore';
+import {
+  getSettings,
+  isManual,
+  updateSettings,
+  withManual,
+} from '../storage/settingsStore';
 import {Nav} from './nav';
 import {
   ActionsDialog,
@@ -204,6 +209,37 @@ export function LibraryScreen({
         onPress={() => setDlg({kind: 'actions', item})}
       />
     );
+    // Double-tap a folder or deck: straight into its cards, full screen, in
+    // Practice or Study (Customization › Double-tap).
+    const quickStart = (deckIds: string[], heading: string) => {
+      const s = getSettings();
+      if (s.doubleTapPractice) {
+        const cardIds = L.practiceCards(
+          lib,
+          new Set(deckIds),
+          s.practiceFilters,
+          Date.now(),
+        ).map(c => c.id);
+        nav.go({
+          name: 'study',
+          deckIds,
+          title: heading,
+          practice: true,
+          cardIds,
+          filters: [],
+          fullScreen: true,
+        });
+      } else {
+        nav.go({
+          name: 'study',
+          deckIds,
+          title: heading,
+          practice: false,
+          filters: s.practiceFilters,
+          fullScreen: true,
+        });
+      }
+    };
     const row =
       item.kind === 'folder' ? (
         <Row
@@ -225,6 +261,15 @@ export function LibraryScreen({
               ? undefined
               : () => nav.go({name: 'folder', id: item.folder.id})
           }
+          onDoubleTap={
+            arranging
+              ? undefined
+              : () =>
+                  quickStart(
+                    L.decksUnder(lib, item.folder.id).map(d => d.id),
+                    item.folder.name,
+                  )
+          }
           onLongPress={
             arranging ? undefined : () => setDlg({kind: 'actions', item})
           }
@@ -242,6 +287,11 @@ export function LibraryScreen({
             arranging
               ? undefined
               : () => nav.go({name: 'deck', id: item.deck.id})
+          }
+          onDoubleTap={
+            arranging
+              ? undefined
+              : () => quickStart([item.deck.id], item.deck.name)
           }
           onLongPress={
             arranging ? undefined : () => setDlg({kind: 'actions', item})

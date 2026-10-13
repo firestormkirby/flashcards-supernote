@@ -13,7 +13,61 @@ function Tip({lead, rest}: {lead: string; rest: string}) {
   );
 }
 
-export function WelcomeDialog({onDone}: {onDone: () => void}) {
+/**
+ * The version of the welcome tips. Raising it shows them again after an
+ * update: as "What's new" to someone who has seen an earlier version.
+ */
+export const WELCOME_VERSION = 2;
+
+/** What 1.1 added, shown to new users with the rest and on its own after an update. */
+function WhatsNewTips() {
+  return (
+    <>
+      <Tip
+        lead="Card from a screenshot"
+        rest="Take a screenshot anywhere, even in the web browser, then in Flashcards tap + New › Card from screenshot. The newest one opens, ready for you to mark the part you want. Use another part of it for the back."
+      />
+      <Tip
+        lead="Put in note"
+        rest="Paste a card into the note you came from: tap Put in note on its answer, or while editing it. Starred can paste all your starred cards at once."
+      />
+      <Tip
+        lead="Bold and italics"
+        rest="Write **bold** or *italics* on a card, or select words and tap B or I above the back."
+      />
+      <Tip
+        lead="Double-tap a folder or deck"
+        rest="to go straight into its cards, full screen. Customization chooses Practice or Study."
+      />
+    </>
+  );
+}
+
+export function WelcomeDialog({
+  whatsNew,
+  onDone,
+}: {
+  /** Someone who saw an earlier welcome: show only what's new. */
+  whatsNew?: boolean;
+  onDone: () => void;
+}) {
+  if (whatsNew) {
+    return (
+      <Dialog onDismiss={onDone}>
+        <T size={23} bold center>
+          New in Flashcards 1.1
+        </T>
+        <Spacer h={16} />
+        <WhatsNewTips />
+        <T size={15} muted>
+          Settings › Customization has new options too: left-aligned cards,
+          full-screen buttons, and the display size.
+        </T>
+        <Spacer h={16} />
+        <Button label="Okay" primary onPress={onDone} />
+      </Dialog>
+    );
+  }
   return (
     <Dialog onDismiss={onDone}>
       <T size={23} bold center>
@@ -49,9 +103,10 @@ export function WelcomeDialog({onDone}: {onDone: () => void}) {
         lead="Picture card"
         rest="Put a picture on a card: tap Picture card in the toolbar to mark part of the page (a diagram in a PDF, say), or lasso a drawing or sticker and tap Picture card in the lasso toolbar."
       />
+      <WhatsNewTips />
       <Tip
         lead="Import"
-        rest="brings in decks you write on a computer. The Import page shows how."
+        rest="brings in decks you write on a computer, or from Anki. The Import page shows how."
       />
       <Spacer h={6} />
       <Button label="Get started" primary onPress={onDone} />

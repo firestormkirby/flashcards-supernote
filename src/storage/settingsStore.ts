@@ -36,6 +36,20 @@ export interface AppSettings {
   backupPromptAt: number;
   /** The deck a new card was last saved into: where the next new card goes. */
   lastDeckId: string | null;
+  /** Card text (and the rule between the sides) left-aligned instead of centered. */
+  leftAlignCards: boolean;
+  /** Double-tapping a folder or deck opens its cards full screen in Practice (true) or Study. */
+  doubleTapPractice: boolean;
+  /** Full-screen study: buttons shown once the answer is revealed. */
+  fullScreenEdit: boolean;
+  fullScreenStar: boolean;
+  fullScreenAllCards: boolean;
+  /** Which version of the welcome tips was last shown; a newer one shows again after an update. */
+  welcomeVersionSeen: number;
+  /** Display size in percent: 100 is the device's normal size. */
+  displayScale: number;
+  /** Display size is "Custom": displayScale was fine-tuned with − and +. */
+  displayCustom: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -59,6 +73,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastBackupAt: 0,
   backupPromptAt: 0,
   lastDeckId: null,
+  leftAlignCards: false,
+  doubleTapPractice: true,
+  fullScreenEdit: false,
+  fullScreenStar: false,
+  fullScreenAllCards: false,
+  welcomeVersionSeen: 0,
+  displayScale: 100,
+  displayCustom: false,
 };
 
 const KEY = 'cards:settings:v1';
