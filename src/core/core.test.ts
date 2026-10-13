@@ -85,6 +85,23 @@ describe('parser', () => {
     expect(parseDeck('x.txt', formatDeck(r.cards)).cards).toEqual(r.cards);
   });
 
+  test('a blank line inside an answer is kept; before a new card it still separates', () => {
+    // Same fixture as the Android app's CoreLogicTest (Cards 1.0.2).
+    const spaced =
+      'Q: Hearsay — elements?\nA: • Out-of-court statement\n• Offered for its truth\n\nNote: the law has changed.\n\nQ: Next?\nA: Yes\n\nfront :: back\n\n# heading\nlast :: one';
+    const rs = parseDeck('s.txt', spaced);
+    expect(rs.cards).toEqual([
+      [
+        'Hearsay — elements?',
+        '• Out-of-court statement\n• Offered for its truth\n\nNote: the law has changed.',
+      ],
+      ['Next?', 'Yes'],
+      ['front', 'back'],
+      ['last', 'one'],
+    ]);
+    expect(parseDeck('s.txt', formatDeck(rs.cards)).cards).toEqual(rs.cards);
+  });
+
   test('examples from the Import page', () => {
     const ex1 = parseDeck(
       'a.txt',

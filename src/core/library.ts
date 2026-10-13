@@ -710,10 +710,13 @@ export function importFiles(
       ignored.push(file.path);
       continue;
     }
-    if (isAnkiText(file.content)) {
+    const name = file.path.slice(
+      file.path.replace(/\\/g, '/').lastIndexOf('/') + 1,
+    );
+    if (isAnkiText(name, file.content)) {
       // One Anki file can hold many decks; "A::B" decks become folders, under
       // the folders the file itself is in.
-      const anki = parseAnki(file.content, [split[1]]);
+      const anki = parseAnki(name, file.content);
       warnings.push(...anki.warnings);
       for (const d of anki.decks) {
         const folderNames = [...split[0], ...d.path.slice(0, -1)];
@@ -729,9 +732,6 @@ export function importFiles(
       }
       continue;
     }
-    const name = file.path.slice(
-      file.path.replace(/\\/g, '/').lastIndexOf('/') + 1,
-    );
     const result = parseDeck(name, file.content);
     warnings.push(...result.warnings);
     const key = JSON.stringify(split);

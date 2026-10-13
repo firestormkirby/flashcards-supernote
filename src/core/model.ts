@@ -5,6 +5,8 @@
  */
 
 /** A folder. `parentId === null` means it sits at the top level of the library. */
+import {plainText} from './richText';
+
 export interface Folder {
   id: string;
   parentId: string | null;
@@ -118,7 +120,7 @@ export function makeCard(
 
 /** What a list shows for a side: its text, or "Picture" for a picture-only side. */
 export function sideLabel(text: string, image?: CardImage): string {
-  const t = text.replace(/\n/g, ' ').trim();
+  const t = plainText(text).replace(/\n/g, ' ').trim();
   if (t) return t;
   return image ? 'Picture' : '';
 }

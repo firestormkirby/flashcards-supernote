@@ -1,89 +1,93 @@
-import {ankiExport, clozeCard, htmlToText, isAnkiText, parseAnki} from './anki';
+import {ankiExport, ankiFieldToText, isAnkiText, parseAnki} from './anki';
 import {importFiles} from './library';
 import {EMPTY_LIBRARY} from './model';
 import {deckNamedAfter} from '../ui/CardEditor';
 
-// What Anki Desktop writes for "Notes in Plain Text" with deck names, GUIDs
-// and note types included, and HTML left on.
-const ANKI_EXPORT = [
+// The Android app's own fixture (CoreLogicTest.kt, Cards 1.0.4–1.0.6): the
+// same file must give the same cards in both apps.
+const ANKI_NEW = [
   '#separator:tab',
   '#html:true',
   '#guid column:1',
   '#notetype column:2',
   '#deck column:3',
-  'a1\tBasic\tSpanish::Verbs\thablar\tto speak',
-  'a2\tBasic\tSpanish::Verbs\tcomer\tto <b>eat</b>',
-  'a3\tBasic\tSpanish\t"una ""casa"""\ta house<br>(feminine)',
-  'a4\tCloze\tHistory\tThe Magna Carta was sealed in {{c1::1215::year}}.\tKing John',
-  'a5\tBasic\tHistory\t<img src="map.png">\t',
-  '',
+  '#tags column:6',
+  'g1\tBasic\tBar::Evidence\tHearsay?\tAn <b>out-of-court</b> statement<br>offered for its truth&nbsp;&amp; more\ttag1',
+  'g2\tBasic (and reversed card)\tSpanish\tgato\tcat\t',
+  'g3\tCloze\tBar::Evidence\t{{c1::Erie}} applies {{c2::state::which law?}} substantive law\tBack extra here\t',
+  'g4\tBasic\tSpanish\t"Line one<div>line ""two""</div>"\t"multi\nline"\t',
+  'g5\tBasic\tSpanish\t<img src="x.png">\tpicture\t',
 ].join('\n');
 
-test('recognises Anki exports by their header', () => {
-  expect(isAnkiText(ANKI_EXPORT)).toBe(true);
-  expect(isAnkiText('﻿#separator:Comma\nfront,back')).toBe(true);
-  expect(isAnkiText('# Spanish verbs\nhablar :: to speak')).toBe(false);
-});
-
-test('parses decks, quoting, HTML and cloze', () => {
-  const {decks, warnings} = parseAnki(ANKI_EXPORT, ['Fallback']);
-  expect(decks).toEqual([
+test('Anki exports are recognised, with or without a header', () => {
+  expect(isAnkiText('export.txt', ANKI_NEW)).toBe(true);
+  const old = 'gato\tcat\tanimals\nperro\t"dog" (pet)\t\n';
+  expect(isAnkiText('Spanish.txt', old)).toBe(true);
+  expect(parseAnki('Spanish.txt', old).decks).toEqual([
     {
-      path: ['Spanish', 'Verbs'],
+      path: ['Spanish'],
       cards: [
-        ['hablar', 'to speak'],
-        ['comer', 'to eat'],
-      ],
-    },
-    {path: ['Spanish'], cards: [['una "casa"', 'a house\n(feminine)']]},
-    {
-      path: ['History'],
-      cards: [
-        [
-          'The Magna Carta was sealed in [year].',
-          'The Magna Carta was sealed in 1215.\n\nKing John',
-        ],
+        ['gato', 'cat'],
+        ['perro', '"dog" (pet)'],
       ],
     },
   ]);
-  expect(warnings).toHaveLength(2); // the picture-only note: skipped, media dropped
+  // Flashcards' own formats are not Anki.
+  expect(
+    isAnkiText(
+      'x.txt',
+      'Photosynthesis :: Turning light into food\nQ: a\nA: b',
+    ),
+  ).toBe(false);
+  expect(isAnkiText('x.csv', ANKI_NEW)).toBe(false);
 });
 
-test('without a deck column, cards go to the file name', () => {
-  const {decks} = parseAnki('#separator:tab\n#html:false\nQ\tA a<b\n', [
-    'Mine',
+test('subdecks, HTML, cloze per blank, reversed cards and quoting (as on Android)', () => {
+  const ak = parseAnki('export.txt', ANKI_NEW);
+  const evidence = ak.decks.find(d => d.path.join('/') === 'Bar/Evidence')!;
+  const spanish = ak.decks.find(d => d.path.join('/') === 'Spanish')!;
+  expect(evidence.cards).toEqual([
+    ['Hearsay?', 'An **out-of-court** statement\noffered for its truth & more'],
+    [
+      '[…] applies state substantive law',
+      'Erie applies state substantive law\nBack extra here',
+    ],
+    [
+      'Erie applies [which law?] substantive law',
+      'Erie applies state substantive law\nBack extra here',
+    ],
   ]);
-  expect(decks).toEqual([{path: ['Mine'], cards: [['Q', 'A a<b']]}]);
+  expect(spanish.cards).toEqual([
+    ['gato', 'cat'],
+    ['cat', 'gato'],
+    ['Line one\nline "two"', 'multi\nline'],
+  ]);
+  expect(ak.warnings).toHaveLength(2);
+  expect(ak.warnings.some(w => w.includes('1 image'))).toBe(true);
 });
 
-test('html to text keeps line breaks and decodes entities', () => {
-  expect(htmlToText('<div>one&nbsp;two</div><div>3 &lt; 4 &#233;</div>')).toBe(
-    'one two\n3 < 4 é',
+test('bold and italics come across as markers', () => {
+  expect(
+    ankiFieldToText('A <b>key</b> word and <i>emphasis </i>here', true),
+  ).toBe('A **key** word and *emphasis* here');
+  expect(ankiFieldToText('<ul><li>one</li><li>two</li></ul>', true)).toBe(
+    '• one\n\n• two',
   );
-  expect(htmlToText('[sound:x.mp3]word')).toBe('word');
-  expect(clozeCard('no gaps', '')).toBeNull();
-  expect(clozeCard('{{c1::a}} and {{c2::b}}', '')).toEqual([
-    '[…] and […]',
-    'a and b',
-  ]);
 });
 
 test('import: subdecks become folders under the file, and re-import keeps progress', () => {
-  const [lib, report] = importFiles(EMPTY_LIBRARY, [
-    {path: 'Anki/All Decks.txt', content: ANKI_EXPORT},
+  const [lib] = importFiles(EMPTY_LIBRARY, [
+    {path: 'Downloads/export.txt', content: ANKI_NEW},
   ]);
-  expect(report.decksAdded).toBe(3);
-  expect(report.cardsTotal).toBe(4);
-  const names = (folderId: string | null) =>
-    lib.folders.filter(f => f.parentId === folderId).map(f => f.name);
-  expect(names(null)).toEqual(['Anki']);
-  const anki = lib.folders.find(f => f.name === 'Anki')!;
-  expect(names(anki.id).sort()).toEqual(['Spanish']);
-  const verbs = lib.decks.find(d => d.name === 'Verbs')!;
-  expect(lib.folders.find(f => f.id === verbs.folderId)!.name).toBe('Spanish');
+  expect(new Set(lib.folders.map(f => f.name))).toEqual(
+    new Set(['Downloads', 'Bar']),
+  );
+  expect(new Set(lib.decks.map(d => d.name))).toEqual(
+    new Set(['Evidence', 'Spanish']),
+  );
+  expect(lib.cards).toHaveLength(6);
 
-  // Study one card, then import an edited export: progress stays with it.
-  const studied = lib.cards.find(c => c.front === 'hablar')!;
+  const studied = lib.cards.find(c => c.front === 'gato')!;
   const withProgress = {
     ...lib,
     cards: lib.cards.map(c =>
@@ -92,22 +96,22 @@ test('import: subdecks become folders under the file, and re-import keeps progre
   };
   const [again] = importFiles(withProgress, [
     {
-      path: 'Anki/All Decks.txt',
-      content: ANKI_EXPORT.replace('to speak', 'to speak, to talk'),
+      path: 'Downloads/export.txt',
+      content: ANKI_NEW.replace('\tcat\t', '\tcat (feline)\t'),
     },
   ]);
-  const card = again.cards.find(c => c.front === 'hablar')!;
+  const card = again.cards.find(c => c.front === 'gato')!;
   expect(card.id).toBe(studied.id);
-  expect(card.back).toBe('to speak, to talk');
+  expect(card.back).toBe('cat (feline)');
   expect(card.review.reps).toBe(3);
 });
 
-test('export: folders become ::, ids are GUIDs, and it imports back the same', () => {
+test('export: folders become ::, ids are GUIDs, bold is <b>, and it imports back the same', () => {
   const [lib] = importFiles(EMPTY_LIBRARY, [
     {path: 'Spanish/Verbs.txt', content: 'hablar :: to speak\ncomer :: to eat'},
     {
       path: 'Notes.txt',
-      content: 'Q: Two lines\nhere\nA: a "quoted"\tanswer\n',
+      content: 'Q: Two lines\nhere\nA: a **"quoted"** *answer* & more\n',
     },
   ]);
   const withPicture = {
@@ -137,8 +141,9 @@ test('export: folders become ::, ids are GUIDs, and it imports back the same', (
   expect(lines).toContain(
     `${hablar.id}\tBasic\tSpanish::Verbs\thablar\tto speak`,
   );
+  expect(text).toContain('"a <b>""quoted""</b> <i>answer</i> &amp; more"');
 
-  const {decks} = parseAnki(text, ['x']);
+  const {decks} = parseAnki('x.txt', text);
   expect(decks).toEqual([
     {
       path: ['Spanish', 'Verbs'],
@@ -147,8 +152,10 @@ test('export: folders become ::, ids are GUIDs, and it imports back the same', (
         ['comer', 'to eat'],
       ],
     },
-    // Anki's fields are HTML, where a tab is just a space.
-    {path: ['Notes'], cards: [['Two lines\nhere', 'a "quoted" answer']]},
+    {
+      path: ['Notes'],
+      cards: [['Two lines\nhere', 'a **"quoted"** *answer* & more']],
+    },
   ]);
 });
 

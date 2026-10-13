@@ -1,9 +1,8 @@
 /**
- * Anki Desktop's plain-text format, both ways. (The idea and the directive
- * handling follow taoist22/sn-flashcards, MIT.)
+ * Anki Desktop's plain-text format, both ways.
  *
- * Import: Anki › Export › "Notes in Plain Text (.txt)" writes a header of
- * `#key:value` lines, then one note per row:
+ * Import reads "Notes in Plain Text (.txt)" exactly as the Android app does
+ * (AnkiText.kt, Cards 1.0.4–1.0.6), so one file gives the same cards in both:
  *
  *   #separator:tab
  *   #html:true
@@ -12,42 +11,57 @@
  *   #deck column:3
  *   a1B2c3<TAB>Basic<TAB>Spanish::Verbs<TAB>hablar<TAB>to speak
  *
- * Fields that hold a tab, quote or line break are quoted with "" escapes,
- * which readCsv handles. Deck names use "::" for subdecks; here those become
- * folders. Cloze notes become a card with the gaps hidden on the front and
- * filled in on the back. HTML is turned into plain text, and media references
- * are dropped (a text file carries no pictures or sounds).
+ *  - The first field is the front and the second the back. "Basic (and
+ *    reversed card)" also adds the reverse card, and "optional reversed" does
+ *    when its third field is set.
+ *  - Cloze notes ({{c1::answer::hint}}) become one card per cloze number: the
+ *    front shows "[…]" (or "[hint]") for that blank, the back the full text
+ *    plus the Back Extra field.
+ *  - Formatting: bold and italics become **bold** / *italics*; line breaks and
+ *    list items are kept; other tags are dropped; entities are decoded.
+ *    Pictures and sounds are left out, with a warning.
+ *  - "Bar::Evidence::Hearsay" becomes folders Bar › Evidence and deck Hearsay.
+ *    Without a deck, cards go to a deck named after the file.
+ *  - Older exports have no header: rows that are all tab-separated, unquoted.
  *
  * Export writes the same format, with each card's id as Anki's GUID, so
  * importing a newer export into Anki updates those notes instead of adding
- * duplicates.
+ * duplicates. (Export, and the first version of import, follow
+ * taoist22/sn-flashcards, MIT.)
  */
 
 import {CardPair, readCsv} from './deckParser';
 import type {Card, LibraryData} from './model';
+import {richRuns} from './richText';
 
-/** True when the text starts with Anki's header lines. */
-export function isAnkiText(text: string): boolean {
-  const first = text
+const HEADER =
+  /^#(separator|html|tags column|deck column|notetype column|guid column|columns|deck|notetype|if matches|tags):/i;
+const Q_OR_A = /^(q|question|front|a|answer|back)\s*[:：](?![:：])/i;
+const CLOZE_TEST = /\{\{c\d+::[\s\S]*?\}\}/;
+
+/**
+ * True for an Anki text export: Anki's header lines, or (older Anki) rows
+ * that are all tab-separated and not in Flashcards' own formats.
+ */
+export function isAnkiText(fileName: string, text: string): boolean {
+  const name = fileName.toLowerCase();
+  if (!name.endsWith('.txt') && !name.endsWith('.tsv')) return false;
+  const lines = text
     .replace(/^﻿/, '')
-    .split(/\r?\n/)
-    .find(l => l.trim() !== '');
+    .split('\n')
+    .map(l => l.replace(/\r$/, ''))
+    .filter(l => l.trim() !== '')
+    .slice(0, 200);
+  if (lines.length === 0) return false;
+  if (lines.slice(0, 12).some(l => HEADER.test(l))) return true;
   return (
-    !!first &&
-    /^#(separator|html|tags|columns|notetype|deck|guid)( column)?:/i.test(
-      first.trim(),
-    )
+    lines.every(
+      l =>
+        l.includes('\t') &&
+        !Q_OR_A.test(l.trim()) &&
+        !l.trimStart().startsWith('#'),
+    ) && !lines.some(l => l.includes('::') && !CLOZE_TEST.test(l))
   );
-}
-
-interface Header {
-  delimiter: string;
-  html: boolean | null;
-  /** 0-based columns that aren't the note's fields. */
-  guid?: number;
-  notetype?: number;
-  deck?: number;
-  tags?: number;
 }
 
 const SEPARATORS: Record<string, string> = {
@@ -59,74 +73,121 @@ const SEPARATORS: Record<string, string> = {
   colon: ':',
 };
 
-function readHeader(lines: string[]): Header {
-  const h: Header = {delimiter: '\t', html: null};
-  for (const line of lines) {
-    const m = line.trim().match(/^#([a-z ]+):(.*)$/i);
-    if (!m) continue;
-    const key = m[1].trim().toLowerCase();
-    const value = m[2].trim();
-    if (key === 'separator') {
-      h.delimiter = SEPARATORS[value.toLowerCase()] ?? (value[0] || '\t');
-    } else if (key === 'html') {
-      h.html = value.toLowerCase() === 'true';
-    } else if (key.endsWith(' column')) {
-      const col = Number(value) - 1;
-      if (!Number.isInteger(col) || col < 0) continue;
-      const which = key.slice(0, -' column'.length);
-      if (which === 'guid') h.guid = col;
-      else if (which === 'notetype') h.notetype = col;
-      else if (which === 'deck') h.deck = col;
-      else if (which === 'tags') h.tags = col;
-    }
-  }
-  return h;
-}
-
-const ENTITIES: Record<string, string> = {
+const NAMED: Record<string, string> = {
   nbsp: ' ',
   amp: '&',
   lt: '<',
   gt: '>',
   quot: '"',
   apos: "'",
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  bull: '•',
+  middot: '·',
+  times: '×',
+  divide: '÷',
+  deg: '°',
+  plusmn: '±',
+  frac12: '½',
+  sect: '§',
+  para: '¶',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  rarr: '→',
+  larr: '←',
+  harr: '↔',
+  uarr: '↑',
+  darr: '↓',
+  le: '≤',
+  ge: '≥',
+  ne: '≠',
+  eacute: 'é',
 };
 
-/** Anki's HTML as plain text: line breaks kept, tags and media dropped. */
-export function htmlToText(html: string): string {
-  return html
-    .replace(/\[sound:[^\]]*\]/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(div|p|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, code: string) => {
-      if (code[0] === '#') {
-        const n =
-          code[1] === 'x' || code[1] === 'X'
-            ? parseInt(code.slice(2), 16)
-            : parseInt(code.slice(1), 10);
+function decodeEntities(s: string): string {
+  return s.replace(
+    /&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g,
+    (whole, e: string) => {
+      if (/^#x/i.test(e)) {
+        const n = parseInt(e.slice(2), 16);
         return Number.isFinite(n) ? String.fromCodePoint(n) : whole;
       }
-      return ENTITIES[code.toLowerCase()] ?? whole;
-    })
+      if (e[0] === '#') {
+        const n = parseInt(e.slice(1), 10);
+        return Number.isFinite(n) ? String.fromCodePoint(n) : whole;
+      }
+      return NAMED[e.toLowerCase()] ?? whole;
+    },
+  );
+}
+
+const MEDIA = /\[sound:[^\]]*]|<img\b[^>]*>/gi;
+
+/** Bold or italics: the markers go round the words, spaces stay outside. */
+const marked =
+  (marker: string) =>
+  (_all: string, _tag: string, pre: string, inner: string, post: string) =>
+    inner.trim() === ''
+      ? pre + inner + post
+      : `${pre}${marker}${inner}${marker}${post}`;
+
+/** Anki's field HTML as Flashcards text. `html` false: the field is already plain text. */
+export function ankiFieldToText(field: string, html: boolean | null): string {
+  let s = field.replace(MEDIA, '');
+  const isHtml = html ?? /<[a-zA-Z/][^>]*>|&[#a-zA-Z0-9]+;/.test(s);
+  if (isHtml) {
+    s = s
+      .replace(/<(b|strong)\b[^>]*>(\s*)([\s\S]*?)(\s*)<\/\1>/gi, marked('**'))
+      .replace(/<(i|em)\b[^>]*>(\s*)([\s\S]*?)(\s*)<\/\1>/gi, marked('*'))
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<li\b[^>]*>/gi, '\n• ')
+      .replace(/<(div|p|tr|ul|ol|h[1-6])\b[^>]*>/gi, '\n')
+      .replace(/<\/(div|p|li|tr|ul|ol|h[1-6])>/gi, '\n')
+      .replace(/<[^>]+>/g, '');
+    s = decodeEntities(s);
+  }
+  return s
+    .replace(/ /g, ' ')
     .split('\n')
-    .map(l => l.replace(/[ \t]+/g, ' ').trim())
+    .map(l => l.trim().replace(/[ \t]{2,}/g, ' '))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
-const CLOZE = /\{\{c\d+::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
+const CLOZE = /\{\{c(\d+)::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
 
-/** A cloze note as front (gaps hidden, showing any hint) and back (filled in). */
-export function clozeCard(text: string, extra: string): CardPair | null {
-  if (!CLOZE.test(text)) return null;
-  CLOZE.lastIndex = 0;
-  const front = text.replace(CLOZE, (_m, _a, hint?: string) =>
-    hint ? `[${hint}]` : '[…]',
+/** One card per cloze number: that blank hidden on the front, all filled in on the back. */
+export function clozeCards(
+  rawText: string,
+  extra: string,
+  html: boolean | null,
+): CardPair[] {
+  const numbers = [
+    ...new Set([...rawText.matchAll(CLOZE)].map(m => Number(m[1]))),
+  ].sort((a, b) => a - b);
+  if (numbers.length === 0) return [];
+  const filled = ankiFieldToText(
+    rawText.replace(CLOZE, (_m, _n, answer: string) => answer),
+    html,
   );
-  const filled = text.replace(CLOZE, (_m, answer: string) => answer);
-  return [front, extra ? `${filled}\n\n${extra}` : filled];
+  const back = extra ? `${filled}\n${extra}` : filled;
+  return numbers
+    .map(n => {
+      const front = rawText.replace(
+        CLOZE,
+        (_m, num: string, answer: string, hint?: string) =>
+          Number(num) === n ? (hint ? `[${hint}]` : '[…]') : answer,
+      );
+      return [ankiFieldToText(front, html), back] as CardPair;
+    })
+    .filter(([front]) => front !== '');
 }
 
 export interface AnkiDeck {
@@ -135,85 +196,147 @@ export interface AnkiDeck {
   cards: CardPair[];
 }
 
-/**
- * Cards from an Anki plain-text export, grouped by deck. Without a deck
- * column every card goes to `fallbackPath` (the file's own name).
- */
+/** Cards from an Anki plain-text export, grouped by deck, in the order they first appear. */
 export function parseAnki(
+  fileName: string,
   text: string,
-  fallbackPath: string[],
 ): {decks: AnkiDeck[]; warnings: string[]} {
+  const warnings: string[] = [];
   const clean = text
     .replace(/^﻿/, '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
-  const lines = clean.split('\n');
-  let bodyStart = 0;
-  while (bodyStart < lines.length && lines[bodyStart].startsWith('#'))
-    bodyStart++;
-  const h = readHeader(lines.slice(0, bodyStart));
-  const rows = readCsv(lines.slice(bodyStart).join('\n'), h.delimiter);
-  const special = new Set(
-    [h.guid, h.notetype, h.deck, h.tags].filter(
-      (c): c is number => c !== undefined,
-    ),
-  );
-  // With no #html line Anki guesses; so do we, from what the fields look like.
-  const looksHtml = (s: string) => /<\/?[a-z][^>]*>|&[a-z#0-9]+;/i.test(s);
-  const asText = (s: string) =>
-    h.html === true || (h.html === null && looksHtml(s))
-      ? htmlToText(s)
-      : s.trim();
 
-  const byDeck = new Map<string, AnkiDeck>();
-  let skipped = 0;
-  let mediaDropped = 0;
-  for (const row of rows) {
-    if (row.every(c => c.trim() === '')) continue;
-    const fields = row.filter((_c, i) => !special.has(i));
-    const raw = fields.slice(0, 2);
-    if (raw.some(f => /<img\b|\[sound:/i.test(f))) mediaDropped++;
-    const [f0, f1] = raw.map(f => asText(f ?? ''));
-    const pair: CardPair | null =
-      clozeCard(f0 ?? '', f1 ?? '') ?? (f0 && f1 ? [f0, f1] : null);
-    if (!pair) {
-      skipped++;
+  let separator = '\t';
+  let html: boolean | null = null;
+  let deckCol = 0;
+  let notetypeCol = 0;
+  let guidCol = 0;
+  let tagsCol = 0;
+  let fixedNotetype = '';
+  let fixedDeck = '';
+  const body: string[] = [];
+  let inHeader = true;
+  let hasHeader = false;
+  for (const line of clean.split('\n')) {
+    if (inHeader && line.startsWith('#')) {
+      hasHeader = true;
+      const colon = line.indexOf(':');
+      const key = (colon < 0 ? line : line.slice(0, colon))
+        .slice(1)
+        .trim()
+        .toLowerCase();
+      const value = colon < 0 ? '' : line.slice(colon + 1).trim();
+      const col = parseInt(value, 10) || 0;
+      if (key === 'separator') {
+        separator = SEPARATORS[value.toLowerCase()] ?? (value[0] || '\t');
+      } else if (key === 'html') {
+        html = value.toLowerCase() === 'true';
+      } else if (key === 'deck column') {
+        deckCol = col;
+      } else if (key === 'notetype column') {
+        notetypeCol = col;
+      } else if (key === 'guid column') {
+        guidCol = col;
+      } else if (key === 'tags column') {
+        tagsCol = col;
+      } else if (key === 'notetype') {
+        fixedNotetype = value;
+      } else if (key === 'deck') {
+        fixedDeck = value;
+      }
       continue;
     }
-    const deckName = h.deck !== undefined ? row[h.deck]?.trim() : '';
-    const path = deckName
-      ? deckName
-          .split('::')
-          .map(p => p.trim())
-          .filter(p => p !== '')
-      : fallbackPath;
-    const key = JSON.stringify(path);
-    const deck = byDeck.get(key) ?? {path, cards: []};
-    deck.cards.push(pair);
-    byDeck.set(key, deck);
+    inHeader = false;
+    body.push(line);
   }
-  const warnings: string[] = [];
-  if (skipped > 0)
+
+  const special = new Set(
+    [deckCol, notetypeCol, guidCol, tagsCol].filter(c => c > 0),
+  );
+  // Newer exports quote fields holding the separator, a quote or a line
+  // break; older ones (no header) don't quote, so a stray quote is just text.
+  const rows = hasHeader
+    ? readCsv(body.join('\n'), separator)
+    : body.map(l => l.split(separator));
+
+  const byDeck = new Map<string, CardPair[]>();
+  let media = 0;
+  let row = 0;
+  for (const cells of rows) {
+    row++;
+    if (cells.every(c => c.trim() === '')) continue;
+    const raw = cells.filter((_c, i) => !special.has(i + 1)).map(c => c.trim());
+    const notetype =
+      (notetypeCol > 0 ? cells[notetypeCol - 1] : fixedNotetype) ?? '';
+    const deck = ((deckCol > 0 ? cells[deckCol - 1] : fixedDeck) ?? '').trim();
+    media += raw.reduce((n, f) => n + (f.match(MEDIA)?.length ?? 0), 0);
+    const f = raw.map(x => ankiFieldToText(x, html));
+
+    const cards: CardPair[] = [];
+    const first = raw[0] ?? '';
+    if (/cloze/i.test(notetype) || CLOZE_TEST.test(first)) {
+      cards.push(...clozeCards(first, f[1] ?? '', html));
+    } else {
+      const front = f[0] ?? '';
+      const back = f[1] ?? '';
+      if (front && back) {
+        cards.push([front, back]);
+        const reversed =
+          /and reversed/i.test(notetype) ||
+          (/optional reversed/i.test(notetype) && !!f[2]);
+        if (reversed) cards.push([back, front]);
+      }
+    }
+    if (cards.length === 0) {
+      warnings.push(
+        `${fileName} row ${row} skipped: no text on one side (image or sound only?)`,
+      );
+      continue;
+    }
+    const list = byDeck.get(deck);
+    if (list) list.push(...cards);
+    else byDeck.set(deck, cards);
+  }
+  if (media > 0)
     warnings.push(
-      `${skipped} Anki ${
-        skipped === 1 ? 'note was' : 'notes were'
-      } skipped: a card needs text on both sides.`,
+      `${fileName}: ${media} image or sound ${
+        media === 1 ? 'reference' : 'references'
+      } left out (only text comes across)`,
     );
-  if (mediaDropped > 0)
-    warnings.push(
-      `${mediaDropped} Anki ${
-        mediaDropped === 1 ? 'note had' : 'notes had'
-      } pictures or sounds, which a text export doesn't carry. The text was imported.`,
-    );
-  return {decks: [...byDeck.values()], warnings};
+
+  const base = fileName.slice(fileName.lastIndexOf('/') + 1);
+  const dot = base.lastIndexOf('.');
+  const fileDeck = (dot > 0 ? base.slice(0, dot) : base).trim() || 'Anki';
+  const decks = [...byDeck.entries()].map(([ankiDeck, cards]) => {
+    const parts = ankiDeck
+      .split('::')
+      .map(p => p.trim().replace(/\//g, '-'))
+      .filter(p => p !== '');
+    return {path: parts.length ? parts : [fileDeck], cards};
+  });
+  return {decks, warnings};
 }
 
-const toAnkiField = (s: string) => {
-  const html = s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
+// ---------------------------------------------------------------- export
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** A field for Anki: HTML (bold and italics as <b>/<i>, line breaks as <br>), quoted if needed. */
+const toAnkiField = (s: string, rich = false) => {
+  const html = (
+    rich
+      ? richRuns(s)
+          .map(r => {
+            let x = escapeHtml(r.text);
+            if (r.italic) x = `<i>${x}</i>`;
+            if (r.bold) x = `<b>${x}</b>`;
+            return x;
+          })
+          .join('')
+      : escapeHtml(s)
+  ).replace(/\n/g, '<br>');
   return /[\t"]/.test(html) ? `"${html.replace(/"/g, '""')}"` : html;
 };
 
@@ -246,9 +369,13 @@ export function ankiExport(
       continue;
     }
     rows.push(
-      [c.id, 'Basic', deckName.get(c.deckId) ?? 'Default', c.front, c.back]
-        .map(toAnkiField)
-        .join('\t'),
+      [
+        toAnkiField(c.id),
+        'Basic',
+        toAnkiField(deckName.get(c.deckId) ?? 'Default'),
+        toAnkiField(c.front, true),
+        toAnkiField(c.back, true),
+      ].join('\t'),
     );
   }
   const text =

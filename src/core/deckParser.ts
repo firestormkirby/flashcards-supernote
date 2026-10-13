@@ -12,6 +12,9 @@
  *      on following lines)           between cards
  *   A: answer
  *
+ *      more answer                   a blank line inside an answer is kept, as
+ *                                    long as the next line isn't a new card
+ *
  *   # Heading   or   // note         ignored
  *
  * .csv files: first column = front, second column = back
@@ -70,6 +73,9 @@ function parseText(fileName: string, text: string): ParseResult {
   let back: string | null = null;
   let field = 0; // 0 = not in a Q/A block, 1 = reading question, 2 = reading answer
   let blockStart = 0;
+  // A blank line inside an answer: kept if more answer follows, or ends the
+  // card if a new card (Q:, front :: back, front<TAB>back) or a comment comes next.
+  let blankInAnswer = false;
 
   const flush = () => {
     if (field !== 0) {
@@ -89,6 +95,7 @@ function parseText(fileName: string, text: string): ParseResult {
     front = null;
     back = null;
     field = 0;
+    blankInAnswer = false;
   };
 
   text.split('\n').forEach((raw, index) => {
@@ -96,7 +103,25 @@ function parseText(fileName: string, text: string): ParseResult {
     const t = raw.trim();
     const q = Q_PREFIX.exec(t);
     const a = A_PREFIX.exec(t);
-    if (t === '') {
+    if (blankInAnswer && t !== '') {
+      const startsNewCard =
+        !!q ||
+        !!a ||
+        t.includes('::') ||
+        t.includes('\t') ||
+        t.startsWith('#') ||
+        t.startsWith('//');
+      if (startsNewCard) {
+        flush();
+      } else {
+        back = `${back}\n\n${t}`;
+        blankInAnswer = false;
+        return;
+      }
+    }
+    if (t === '' && field === 2) {
+      blankInAnswer = true;
+    } else if (t === '') {
       flush();
     } else if (q) {
       flush();
@@ -266,7 +291,11 @@ export function formatDeck(cards: CardPair[]): string {
       out += `${front} :: ${back}\n`;
     } else {
       if (out !== '' && !out.endsWith('\n\n')) out += '\n';
-      out += `Q: ${noBlankLines(front)}\nA: ${noBlankLines(back)}\n\n`;
+      // Blank lines inside an answer survive the round trip, unless a
+      // paragraph could be mistaken for a new card.
+      const answer =
+        back.includes('::') || back.includes('\t') ? noBlankLines(back) : back;
+      out += `Q: ${noBlankLines(front)}\nA: ${answer}\n\n`;
     }
   }
   return out;
