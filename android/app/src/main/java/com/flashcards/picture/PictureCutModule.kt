@@ -2,6 +2,7 @@ package com.flashcards.picture
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -25,7 +26,7 @@ class PictureCutModule(context: ReactApplicationContext) :
     /**
      * The area x, y, width, height (in the image's pixels) of [src], as a new
      * PNG in the cache. A width or height of 0 or less means the whole image.
-     * Resolves with the new file's path.
+     * Resolves with {path, width, height, sourceWidth, sourceHeight}.
      */
     @ReactMethod
     fun cut(src: String, x: Double, y: Double, width: Double, height: Double, promise: Promise) {
@@ -59,7 +60,14 @@ class PictureCutModule(context: ReactApplicationContext) :
             FileOutputStream(out).use { stream ->
                 part.compress(Bitmap.CompressFormat.PNG, 100, stream)
             }
-            promise.resolve(out.absolutePath)
+            val result = Arguments.createMap()
+            result.putString("path", out.absolutePath)
+            result.putInt("width", part.width)
+            result.putInt("height", part.height)
+            // The size the source decoded at, to check crops against.
+            result.putInt("sourceWidth", full.width)
+            result.putInt("sourceHeight", full.height)
+            promise.resolve(result)
         } catch (e: Exception) {
             promise.reject("CUT", e.message, e)
         } finally {

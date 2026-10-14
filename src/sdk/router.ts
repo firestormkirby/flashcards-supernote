@@ -123,3 +123,20 @@ export async function closePanel(): Promise<void> {
     console.warn('[cards] closePluginView failed', e),
   );
 }
+
+/**
+ * Closes the panel and, once it has closed, runs `work`: SDK calls that must
+ * not run with the panel open (such as lassoing what was just put in the
+ * note). No timers: JS timers stop while the panel is closed.
+ */
+export async function closePanelThen(work: () => Promise<void>): Promise<void> {
+  try {
+    await flushLibrary();
+  } catch (_) {}
+  try {
+    await PluginManager.closePluginView();
+  } catch (e) {
+    console.warn('[cards] closePluginView failed', e);
+  }
+  await work();
+}

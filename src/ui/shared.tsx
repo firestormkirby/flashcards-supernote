@@ -5,8 +5,8 @@ import {View} from 'react-native';
 import * as L from '../core/library';
 import {Card, DeckCounts, LibraryData, plural} from '../core/model';
 import {displayPath, ensureWritePermission, writeExport} from '../sdk/files';
-import {PutResult, putCardsInNote} from '../sdk/noteInsert';
-import {closePanel} from '../sdk/router';
+import {PutResult, putCardsInNote, selectInNote} from '../sdk/noteInsert';
+import {closePanelThen} from '../sdk/router';
 import {AppSettings} from '../storage/settingsStore';
 import {Chip, Dialog, MessageDialog, Spacer, T} from './kit';
 
@@ -113,6 +113,12 @@ export function PracticeFilterPicker({
  * for the page, a picture that failed) it says so, and closes only when it
  * did put something in.
  */
+function backToNote(r: PutResult) {
+  closePanelThen(async () => {
+    if (r.select) await selectInNote(r.select);
+  });
+}
+
 export function PutInNoteDialog({
   cards,
   pictures,
@@ -128,9 +134,10 @@ export function PutInNoteDialog({
     putCardsInNote(cards, {pictures}).then(r => {
       if (!alive) return;
       if (r.ok && !r.message) {
-        // All in: back to the note, without this dialog waiting there next time.
+        // All in: back to the note, without this dialog waiting there next
+        // time, with what went in lassoed, ready to drag where it's wanted.
         onDismiss();
-        closePanel();
+        backToNote(r);
       } else {
         setResult(r);
       }
@@ -154,7 +161,7 @@ export function PutInNoteDialog({
       message={result.message}
       onDismiss={() => {
         onDismiss();
-        if (result.ok) closePanel();
+        if (result.ok) backToNote(result);
       }}
     />
   );

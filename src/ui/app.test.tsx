@@ -605,8 +605,8 @@ test('card from a screenshot: the newest one opens to mark, and the back can use
   expect(scr().getByText('From the newest screenshot')).toBeTruthy();
 });
 
-test('put in note: the card goes on the page as text, then the panel closes', async () => {
-  const m = load();
+/** A note open on page 2 of a Manta, with element inserts that succeed (or not). */
+function mockNote(m: Mods, {elementsWork = true} = {}) {
   m.sdk.PluginCommAPI.getCurrentFilePath = jest.fn(async () => ({
     success: true,
     result: '/storage/emulated/0/Note/Biology.note',
@@ -615,6 +615,14 @@ test('put in note: the card goes on the page as text, then the panel closes', as
     success: true,
     result: 2,
   }));
+  m.sdk.PluginCommAPI.createElement = jest.fn(async (type: number) => ({
+    success: true,
+    result: {uuid: `el-${type}`},
+  }));
+  m.sdk.PluginCommAPI.insertPageElements = jest.fn(async () => ({
+    success: elementsWork,
+  }));
+  m.sdk.PluginCommAPI.lassoElements = jest.fn(async () => ({success: true}));
   m.sdk.PluginFileAPI.getPageSize = jest.fn(async () => ({
     success: true,
     result: {width: 1920, height: 2560},
@@ -624,24 +632,77 @@ test('put in note: the card goes on the page as text, then the panel closes', as
     insertText: jest.fn(async () => ({success: true, result: true})),
     insertImage: jest.fn(async () => ({success: true, result: true})),
   };
-  await openApp(m);
+}
+
+async function putDraftInNote(m: Mods, front: string, back: string) {
   act(() => {
-    m.router.setPanelIntent({
-      kind: 'newCardDraft',
-      front: 'Osmosis',
-      back: 'Water through a **membrane**',
-    });
+    m.router.setPanelIntent({kind: 'newCardDraft', front, back});
   });
   await scr().findByText('New card');
   fireEvent.press(scr().getByText('Put in note'));
-  await waitFor(() =>
-    expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled(),
-  );
-  const box = m.sdk.PluginNoteAPI.insertText.mock.calls[0][0];
-  expect(box.textContentFull).toBe('Q: Osmosis\nA: Water through a membrane');
-  expect(box.textRect.right).toBeLessThan(1920);
-  expect(m.sdk.PluginNoteAPI.saveCurrentNote).toHaveBeenCalled();
-  expect(m.sdk.PluginNoteAPI.insertImage).not.toHaveBeenCalled();
+}
+
+test('put in note: the card goes in as one text box, lassoed; the next one goes below it', async () => {
+  jest.useFakeTimers({doNotFake: ['nextTick', 'setImmediate']});
+  try {
+    const m = load();
+    mockNote(m);
+    await openApp(m);
+    await putDraftInNote(m, 'Osmosis', 'Water through a **membrane**');
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+    await waitFor(() =>
+      expect(m.sdk.PluginCommAPI.lassoElements).toHaveBeenCalledTimes(1),
+    );
+    const [elements, page, layer] =
+      m.sdk.PluginCommAPI.insertPageElements.mock.calls[0];
+    expect([page, layer]).toEqual([2, 0]);
+    expect(elements).toHaveLength(1);
+    expect(elements[0].type).toBe(500);
+    expect(elements[0].textBox.textContentFull).toBe(
+      'Q: Osmosis\nA: Water through a membrane',
+    );
+    // The panel closed first, then what went in was lassoed.
+    expect(m.sdk.PluginManager.closePluginView).toHaveBeenCalled();
+    const first = m.sdk.PluginCommAPI.lassoElements.mock.calls[0][0];
+    expect(first).toEqual(elements[0].textBox.textRect);
+    expect(m.sdk.PluginNoteAPI.insertText).not.toHaveBeenCalled();
+
+    // A second paste on the same page goes below the first.
+    await putDraftInNote(m, 'Diffusion', 'Spreading out');
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+    await waitFor(() =>
+      expect(m.sdk.PluginCommAPI.lassoElements).toHaveBeenCalledTimes(2),
+    );
+    const second = m.sdk.PluginCommAPI.lassoElements.mock.calls[1][0];
+    expect(second.top).toBeGreaterThan(first.bottom);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('put in note falls back to a plain text box where elements are refused', async () => {
+  jest.useFakeTimers({doNotFake: ['nextTick', 'setImmediate']});
+  try {
+    const m = load();
+    mockNote(m, {elementsWork: false});
+    await openApp(m);
+    await putDraftInNote(m, 'Osmosis', 'Water');
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(2000);
+    });
+    await waitFor(() =>
+      expect(m.sdk.PluginNoteAPI.insertText).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      m.sdk.PluginNoteAPI.insertText.mock.calls[0][0].textContentFull,
+    ).toBe('Q: Osmosis\nA: Water');
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test('put in note from a PDF explains it needs a note', async () => {

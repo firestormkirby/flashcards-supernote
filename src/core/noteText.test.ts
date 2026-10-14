@@ -1,6 +1,6 @@
 import {parseDeck} from './deckParser';
 import {Card, NEW_REVIEW} from './model';
-import {cardNoteText, notePlan, textHeight} from './noteText';
+import {cardBlock, cardNoteText, notePlan, textHeight} from './noteText';
 
 const card = (
   front: string,
@@ -58,4 +58,44 @@ test('many cards: smaller text first, then only as many as fit', () => {
   expect(plan.fontSize).toBeLessThan(fewPlan.fontSize);
   expect(plan.rect.bottom).toBeLessThanOrEqual(MANTA.height);
   expect(plan.text.split('\n\n')).toHaveLength(plan.included);
+});
+
+test('a picture card is a block: Q:, the picture, A:, scaled to fit the page', () => {
+  const pic = {file: 'shot-1.png', width: 10, height: 10};
+  const c = card('Name this organ', 'The heart', {frontImage: pic});
+  const block = cardBlock(c, MANTA, {front: {width: 3000, height: 1000}});
+  expect(block.texts.map(t => t.text)).toEqual([
+    'Q: Name this organ',
+    'A: The heart',
+  ]);
+  const [q, a] = block.texts;
+  const p = block.pictures[0].rect;
+  expect(block.pictures[0].side).toBe('front');
+  // Under the question, above the answer, no wider than the text column.
+  expect(p.top).toBeGreaterThanOrEqual(q.rect.bottom);
+  expect(a.rect.top).toBeGreaterThanOrEqual(p.bottom);
+  expect(p.right - p.left).toBeLessThanOrEqual(q.rect.right - q.rect.left);
+  // Its shape is kept (3:1).
+  expect((p.right - p.left) / (p.bottom - p.top)).toBeCloseTo(3, 1);
+  expect(block.bounds).toEqual({
+    left: q.rect.left,
+    top: q.rect.top,
+    right: q.rect.right,
+    bottom: block.bounds.bottom,
+  });
+  expect(block.bounds.bottom).toBeGreaterThan(a.rect.bottom - 1);
+});
+
+test('a small picture is not enlarged; a text card is one box from `top`', () => {
+  const pic = {file: 'page-1.png', width: 10, height: 10};
+  const c = card('', 'Mitochondria', {frontImage: pic});
+  const block = cardBlock(c, MANTA, {front: {width: 200, height: 100}});
+  const p = block.pictures[0].rect;
+  expect([p.right - p.left, p.bottom - p.top]).toEqual([200, 100]);
+  expect(block.texts[0].text).toBe('Q:');
+
+  const plain = cardBlock(card('Q1', 'A1'), MANTA, {}, 900);
+  expect(plain.texts).toHaveLength(1);
+  expect(plain.texts[0].text).toBe('Q: Q1\nA: A1');
+  expect(plain.bounds.top).toBe(900);
 });
