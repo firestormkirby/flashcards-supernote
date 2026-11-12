@@ -4,20 +4,27 @@
  * answers aren't sitting in view on the deck page.
  */
 
-import React, {useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 import {FlatList, ScrollView, View} from 'react-native';
 import {formatInterval} from '../core/fsrs';
+import * as CL from '../core/cardList';
 import * as L from '../core/library';
-import {plural, sideLabel} from '../core/model';
+import {Card, plural, sideLabel} from '../core/model';
 import {updateLibrary} from '../storage/libraryStore';
-import {updateSettings} from '../storage/settingsStore';
+import {
+  cardListView,
+  updateSettings,
+  withCardListView,
+} from '../storage/settingsStore';
 import {PracticeFilterPicker, exportToDevice, studyCount} from './shared';
 import {Nav} from './nav';
 import {
   ActionsDialog,
   BarButton,
   Button,
+  Chip,
   ConfirmDialog,
+  Dialog,
   EmptyState,
   MessageDialog,
   PAD,
@@ -266,9 +273,29 @@ export function DeckScreen({deckId, nav}: {deckId: string; nav: Nav}) {
   );
 }
 
-/** Every card in a deck: tap to edit, ★ to star. */
+/** Every card in a deck: tap to edit, ★ to star. Sort and filter from the bar above the list. */
 export function AllCardsScreen({deckId, nav}: {deckId: string; nav: Nav}) {
   const lib = useLibrary();
+  const settings = useSettings();
+  const now = useNow();
+  const [menu, setMenu] = useState<'sort' | 'filter' | null>(null);
+  // Remembers the last order, so starring a card doesn't sort the deck again.
+  const sorter = useRef(CL.createCardSorter()).current;
+  const cards = useMemo(() => L.cardsOf(lib, deckId), [lib, deckId]);
+  const view = useMemo(
+    () => cardListView(settings, deckId),
+    [settings, deckId],
+  );
+  const ctx = useMemo(() => CL.filterContext(cards, now), [cards, now]);
+  const shown = useMemo(
+    () =>
+      sorter.sort(
+        CL.filterCards(cards, view.filters, ctx),
+        view.sort,
+        view.reverse,
+      ),
+    [sorter, cards, ctx, view.filters, view.sort, view.reverse],
+  );
   const deck = L.findDeck(lib, deckId);
   if (!deck) {
     return (
@@ -278,11 +305,16 @@ export function AllCardsScreen({deckId, nav}: {deckId: string; nav: Nav}) {
       />
     );
   }
-  const cards = L.cardsOf(lib, deckId);
+  const setView = (v: CL.CardListView) =>
+    updateSettings(s => withCardListView(s, deckId, v));
+  const filtered = view.filters.length > 0;
+  const subtitle = filtered
+    ? `${shown.length} of ${cards.length} ${plural(cards.length, 'card')}`
+    : `${cards.length} ${plural(cards.length, 'card')}`;
   return (
     <Screen
       title={deck.name}
-      subtitle={`${cards.length} ${plural(cards.length, 'card')}`}
+      subtitle={subtitle}
       onBack={nav.back}
       actions={
         <BarButton
@@ -300,29 +332,139 @@ export function AllCardsScreen({deckId, nav}: {deckId: string; nav: Nav}) {
           />
         </EmptyState>
       ) : (
-        <FlatList
-          data={cards}
-          keyExtractor={x => x.id}
-          ItemSeparatorComponent={RowSeparator}
-          renderItem={({item}) => (
-            <Row
-              title={sideLabel(item.front, item.frontImage)}
-              subtitle={sideLabel(item.back, item.backImage)}
-              onPress={() =>
-                nav.go({name: 'editCard', deckId, cardId: item.id})
-              }
-              right={
-                <BarButton
-                  label={item.starred ? '★' : '☆'}
-                  accessibilityLabel={item.starred ? 'Unstar' : 'Star'}
-                  onPress={() => updateLibrary(l => L.toggleStar(l, item.id))}
+        <>
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 8,
+              paddingHorizontal: PAD,
+              paddingVertical: 8,
+            }}>
+            <Button
+              compact
+              style={{flex: 1}}
+              label={`Sort: ${CL.sortLabel(view.sort, view.reverse)} ▾`}
+              onPress={() => setMenu('sort')}
+            />
+            <Button
+              compact
+              style={{flex: 1}}
+              label={`Filter: ${CL.filterLabel(view.filters)} ▾`}
+              onPress={() => setMenu('filter')}
+            />
+          </View>
+          {shown.length === 0 ? (
+            <EmptyState
+              title="No cards match"
+              message="None of this deck's cards fit the filter.">
+              <Button
+                label="Show all cards"
+                onPress={() => setView({...view, filters: []})}
+              />
+            </EmptyState>
+          ) : (
+            <FlatList
+              data={shown}
+              keyExtractor={x => x.id}
+              ItemSeparatorComponent={RowSeparator}
+              renderItem={({item}) => (
+                <Row
+                  title={sideLabel(item.front, item.frontImage)}
+                  subtitle={sideLabel(item.back, item.backImage)}
+                  onPress={() =>
+                    nav.go({name: 'editCard', deckId, cardId: item.id})
+                  }
+                  right={
+                    <BarButton
+                      label={item.starred ? '★' : '☆'}
+                      accessibilityLabel={item.starred ? 'Unstar' : 'Star'}
+                      onPress={() =>
+                        updateLibrary(l => L.toggleStar(l, item.id))
+                      }
+                    />
+                  }
                 />
-              }
+              )}
+              ListFooterComponent={<View style={{height: 40}} />}
             />
           )}
-          ListFooterComponent={<View style={{height: 40}} />}
-        />
+        </>
       )}
+      {menu === 'sort' ? (
+        <ActionsDialog
+          title="Sort cards"
+          onDismiss={() => setMenu(null)}
+          actions={CL.CARD_SORTS.map(({key}) => {
+            const on = view.sort === key;
+            return {
+              // The current sort shows which way it goes; picking it again flips it.
+              label: on
+                ? `✓ ${CL.sortLabel(key, view.reverse)}  (tap to flip)`
+                : CL.sortLabel(key, false),
+              onPress: () => setView(CL.pickSort(view, key)),
+            };
+          })}
+        />
+      ) : null}
+      {menu === 'filter' ? (
+        <CardFilterDialog
+          cards={cards}
+          ctx={ctx}
+          filters={view.filters}
+          onChange={filters => setView({...view, filters})}
+          onDismiss={() => setMenu(null)}
+        />
+      ) : null}
     </Screen>
+  );
+}
+
+/** The filter chips, with how many cards each picks. Any chip on shows cards matching any of them. */
+function CardFilterDialog({
+  cards,
+  ctx,
+  filters,
+  onChange,
+  onDismiss,
+}: {
+  cards: Card[];
+  ctx: CL.FilterContext;
+  filters: CL.CardFilter[];
+  onChange: (f: CL.CardFilter[]) => void;
+  onDismiss: () => void;
+}) {
+  const n = useMemo(() => CL.filterCounts(cards, ctx), [cards, ctx]);
+  return (
+    <Dialog onDismiss={onDismiss}>
+      <T size={20} bold>
+        Show
+      </T>
+      <Spacer h={10} />
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8}}>
+        <Chip
+          label={`All · ${cards.length}`}
+          selected={filters.length === 0}
+          onPress={() => onChange([])}
+        />
+        {CL.CARD_FILTERS.map(({key, label}) => (
+          <Chip
+            key={key}
+            label={`${label} · ${n[key]}`}
+            selected={filters.includes(key)}
+            onPress={() =>
+              onChange(
+                CL.toggleFilter({...CL.DEFAULT_VIEW, filters}, key).filters,
+              )
+            }
+          />
+        ))}
+      </View>
+      <Spacer h={10} />
+      <T size={14} muted>
+        With more than one picked, cards matching any of them are shown.
+      </T>
+      <Spacer h={12} />
+      <Button label="Done" compact onPress={onDismiss} />
+    </Dialog>
   );
 }

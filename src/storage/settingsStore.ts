@@ -5,6 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {CardListView, DEFAULT_VIEW, cleanView} from '../core/cardList';
 import type {PracticeFilter} from '../core/library';
 
 export type TextSize = 'small' | 'medium' | 'large';
@@ -50,6 +51,8 @@ export interface AppSettings {
   displayScale: number;
   /** Display size is "Custom": displayScale was fine-tuned with − and +. */
   displayCustom: boolean;
+  /** Each deck's All cards sort and filters, by deck id. A deck not here uses DEFAULT_VIEW. */
+  cardListViews: Record<string, CardListView>;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -81,6 +84,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   welcomeVersionSeen: 0,
   displayScale: 100,
   displayCustom: false,
+  cardListViews: {},
 };
 
 const KEY = 'cards:settings:v1';
@@ -137,4 +141,20 @@ export function withManual(
   const key = folderId ?? '';
   const rest = s.manualFolders.filter(k => k !== key);
   return {...s, manualFolders: manual ? [...rest, key] : rest};
+}
+
+/** A deck's All cards sort and filters (Order added, All cards until changed). */
+export function cardListView(s: AppSettings, deckId: string): CardListView {
+  const views = s.cardListViews;
+  return views && typeof views === 'object' && deckId in views
+    ? cleanView(views[deckId])
+    : DEFAULT_VIEW;
+}
+
+export function withCardListView(
+  s: AppSettings,
+  deckId: string,
+  view: CardListView,
+): AppSettings {
+  return {...s, cardListViews: {...(s.cardListViews ?? {}), [deckId]: view}};
 }

@@ -733,3 +733,100 @@ test('put in note from a PDF explains it needs a note', async () => {
   expect(await scr().findByText("Couldn't put it in the note")).toBeTruthy();
   expect(m.sdk.PluginNoteAPI.insertText).not.toHaveBeenCalled();
 });
+
+test('all cards: sort A→Z, flip it, filter, and each deck keeps its own choice', async () => {
+  const m = load();
+  await openApp(m);
+  const CL = require('../core/cardList');
+  const {cardsOf} = require('../core/library');
+  const {sideLabel} = require('../core/model');
+  const lib = m.store.getLibrary();
+  const deck = lib.decks.find(d => d.name === 'Trivia Night')!;
+  const labels = (sort: string, reverse: boolean) =>
+    CL.sortCards(cardsOf(lib, deck.id), sort, reverse).map((c: any) =>
+      sideLabel(c.front, c.frontImage),
+    );
+  /** Whether the first few of these row titles are on screen, in this order. */
+  const inOrder = (titles: string[]) => {
+    const want = titles.slice(0, 5);
+    const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const any = new RegExp('^(' + titles.map(escape).join('|') + ')$');
+    const seen = scr()
+      .getAllByText(any)
+      .map(el => el.props.children);
+    return JSON.stringify(seen.slice(0, 5)) === JSON.stringify(want);
+  };
+
+  fireEvent.press(scr().getByText('Trivia Night'));
+  fireEvent.press(await scr().findByText('See all cards'));
+  // A deck opens in the order its cards were added, all of them.
+  await scr().findByText('Sort: Order added ▾');
+  expect(inOrder(labels('added', false))).toBe(true);
+  expect(inOrder(labels('front', false))).toBe(false);
+  fireEvent.press(scr().getByText('Sort: Order added ▾'));
+  fireEvent.press(await scr().findByText('A→Z'));
+  await scr().findByText('Sort: A→Z ▾');
+  expect(inOrder(labels('front', false))).toBe(true);
+
+  // Picking the current sort again flips it.
+  fireEvent.press(scr().getByText('Sort: A→Z ▾'));
+  fireEvent.press(await scr().findByText(/^✓ A→Z/));
+  await scr().findByText('Sort: Z→A ▾');
+  expect(inOrder(labels('front', true))).toBe(true);
+
+  // Nothing is starred yet, so Starred alone shows no cards.
+  fireEvent.press(scr().getByText('Filter: All ▾'));
+  fireEvent.press(await scr().findByText('Starred · 0'));
+  fireEvent.press(scr().getByText('Done'));
+  expect(await scr().findByText('No cards match')).toBeTruthy();
+  expect(scr().getByText(/^0 of \d+ cards$/)).toBeTruthy();
+  fireEvent.press(scr().getByText('Show all cards'));
+  await scr().findByText('Filter: All ▾');
+
+  // Another deck starts fresh.
+  fireEvent.press(scr().getByLabelText('Back'));
+  fireEvent.press(await scr().findByLabelText('Back'));
+  fireEvent.press(await scr().findByText('Examples'));
+  fireEvent.press(await scr().findByText('World Capitals'));
+  fireEvent.press(await scr().findByText('See all cards'));
+  expect(await scr().findByText('Sort: Order added ▾')).toBeTruthy();
+
+  const settings = require('../storage/settingsStore').getSettings();
+  expect(settings.cardListViews[deck.id]).toEqual({
+    sort: 'front',
+    reverse: true,
+    filters: [],
+  });
+});
+
+test('a new card whose front is already in the deck says so, opens it, and still saves', async () => {
+  const m = load();
+  await openApp(m);
+  const deck = m.store.getLibrary().decks.find(d => d.name === 'Trivia Night')!;
+  const original = m.store.getLibrary().cards.find(c => c.deckId === deck.id)!;
+  fireEvent.press(scr().getByText('+ New'));
+  fireEvent.press(await scr().findByText('Card'));
+  fireEvent.press(await scr().findByText('Choose a deck'));
+  fireEvent.press(await scr().findByText('Trivia Night'));
+  const front = scr().getByPlaceholderText('Question or term');
+  // Different case and spacing, with markup: still the same front.
+  fireEvent.changeText(
+    front,
+    `  **${original.front.toUpperCase().replace(/ /g, '  ')}** `,
+  );
+  expect(scr().queryByText(/^Already in this deck/)).toBeNull();
+  expect(await scr().findByText(/^Already in this deck: “/)).toBeTruthy();
+
+  // Open shows the card that's there; closing it comes back to the draft.
+  fireEvent.press(scr().getByLabelText('Open the card already in this deck'));
+  expect(await scr().findByText('Edit card')).toBeTruthy();
+  expect(scr().getByDisplayValue(original.back)).toBeTruthy();
+  fireEvent.press(scr().getByText('✕'));
+  expect(await scr().findByText('New card')).toBeTruthy();
+
+  fireEvent.changeText(scr().getAllByPlaceholderText('Answer')[0], 'again');
+  fireEvent.press(scr().getByText('Save card'));
+  await waitFor(() =>
+    expect(m.store.getLibrary().cards.some(c => c.back === 'again')).toBe(true),
+  );
+});

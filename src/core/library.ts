@@ -655,7 +655,8 @@ function renumber(lib: LibraryData, fs: Folder[], ds: Deck[]): LibraryData {
 
 // ---------------------------------------------------------------- import
 
-const normalizeKey = (front: string) =>
+/** How fronts are matched as "the same card": trimmed, spaces collapsed, any case. */
+export const normalizeKey = (front: string) =>
   front.trim().replace(/\s+/g, ' ').toLowerCase();
 
 /** Splits "Law/Evidence/Hearsay.txt" into folder names and deck name; null if not a deck file. */

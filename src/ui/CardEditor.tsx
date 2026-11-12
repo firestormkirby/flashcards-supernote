@@ -4,6 +4,7 @@
 
 import React, {useEffect, useState} from 'react';
 import {FlatList, ScrollView, View, useWindowDimensions} from 'react-native';
+import {findDuplicates} from '../core/cardList';
 import * as L from '../core/library';
 import {
   Card,
@@ -13,6 +14,7 @@ import {
   LibraryData,
   makeCard,
   plural,
+  sideLabel,
 } from '../core/model';
 import {toggleMarker} from '../core/richText';
 import {closePanel, waitForPicture} from '../sdk/router';
@@ -109,6 +111,14 @@ export function CardEditScreen({
   };
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
+  // The front as it was a moment ago, so the duplicate check runs once typing pauses.
+  const [settledFront, setSettledFront] = useState(front);
+  useEffect(() => {
+    const id = setTimeout(() => setSettledFront(front), DUPLICATE_CHECK_MS);
+    return () => clearTimeout(id);
+  }, [front]);
+  /** A card with the same front, opened from the duplicate warning. */
+  const [openDuplicate, setOpenDuplicate] = useState<string | null>(null);
 
   // While waiting, the next Picture card tap (toolbar or lasso) comes here
   // instead of starting a new card. Leaving the editor drops the waiter.
@@ -195,6 +205,23 @@ export function CardEditScreen({
       />
     );
   }
+
+  if (openDuplicate) {
+    // Shown in place of this editor, which stays as it was underneath.
+    return (
+      <CardEditScreen
+        deckId={null}
+        cardId={openDuplicate}
+        folderHint={null}
+        onClose={() => setOpenDuplicate(null)}
+      />
+    );
+  }
+
+  const duplicates =
+    deck && settledFront === front
+      ? findDuplicates(L.cardsOf(lib, deck.id), front, existing?.id ?? null)
+      : [];
 
   if (picking) {
     return (
@@ -344,6 +371,13 @@ export function CardEditScreen({
           placeholder="Question or term"
           autoFocus={!existing && !draft?.front && !draft?.frontImage}
         />
+        {duplicates.length > 0 ? (
+          <DuplicateNote
+            back={sideLabel(duplicates[0].back, duplicates[0].backImage)}
+            more={duplicates.length - 1}
+            onOpen={() => setOpenDuplicate(duplicates[0].id)}
+          />
+        ) : null}
         <PictureSlot
           img={frontImage}
           maxWidth={window.width - PAD * 2}
@@ -835,5 +869,34 @@ export function MoveItemsScreen({
         />
       </View>
     </Screen>
+  );
+}
+
+/** How long the front has to sit still before it's checked against the deck. */
+const DUPLICATE_CHECK_MS = 400;
+
+/** "Already in this deck: …  · Open". Only a note: saving goes ahead as usual. */
+function DuplicateNote({
+  back,
+  more,
+  onOpen,
+}: {
+  back: string;
+  more: number;
+  onOpen: () => void;
+}) {
+  const shortBack = back.length > 60 ? back.slice(0, 59) + '…' : back;
+  return (
+    <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 6}}>
+      <T size={15} style={{flex: 1}}>
+        {`Already in this deck: “${shortBack}”` +
+          (more > 0 ? ` (and ${more} more)` : '')}
+      </T>
+      <BarButton
+        label="Open"
+        accessibilityLabel="Open the card already in this deck"
+        onPress={onOpen}
+      />
+    </View>
   );
 }
