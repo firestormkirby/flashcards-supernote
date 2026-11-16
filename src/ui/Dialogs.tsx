@@ -17,10 +17,26 @@ function Tip({lead, rest}: {lead: string; rest: string}) {
  * The version of the welcome tips. Raising it shows them again after an
  * update: as "What's new" to someone who has seen an earlier version.
  */
-export const WELCOME_VERSION = 2;
+export const WELCOME_VERSION = 3;
 
-/** What 1.1 added, shown to new users with the rest and on its own after an update. */
+/** What 1.2 added, shown to new users with the rest and on its own after an update. */
 function WhatsNewTips() {
+  return (
+    <>
+      <Tip
+        lead="Sort and filter a deck's cards"
+        rest="Open a deck and tap See all cards. Sort puts them A→Z by front or back, by next review, hardest first and more; tap the current sort again to flip it. Filter shows just the starred, new, due or duplicate cards. Each deck remembers its own."
+      />
+      <Tip
+        lead="Already in this deck"
+        rest="When you write a card whose front is already in the deck, a line under the front says so, with Open to see the one that's there. You can still save."
+      />
+    </>
+  );
+}
+
+/** What 1.1 added: part of the welcome for new users. */
+function EarlierTips() {
   return (
     <>
       <Tip
@@ -55,15 +71,11 @@ export function WelcomeDialog({
     return (
       <Dialog onDismiss={onDone}>
         <T size={23} bold center>
-          New in Flashcards 1.1
+          New in Flashcards 1.2
         </T>
         <Spacer h={16} />
         <WhatsNewTips />
-        <T size={15} muted>
-          Settings › Customization has new options too: left-aligned cards,
-          full-screen buttons, and the display size.
-        </T>
-        <Spacer h={16} />
+        <Spacer h={4} />
         <Button label="Okay" primary onPress={onDone} />
       </Dialog>
     );
@@ -103,6 +115,7 @@ export function WelcomeDialog({
         lead="Picture card"
         rest="Put a picture on a card: tap Picture card in the toolbar to mark part of the page (a diagram in a PDF, say), or lasso a drawing or sticker and tap Picture card in the lasso toolbar."
       />
+      <EarlierTips />
       <WhatsNewTips />
       <Tip
         lead="Import"

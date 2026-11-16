@@ -532,14 +532,14 @@ test('after an update, existing users see what is new, once', async () => {
   current = m;
   ({act, fireEvent, waitFor} = m.rtl);
   m.rtl.render(m.React.createElement(m.App));
-  expect(await scr().findByText('New in Flashcards 1.1')).toBeTruthy();
+  expect(await scr().findByText('New in Flashcards 1.2')).toBeTruthy();
   expect(scr().queryByText('Welcome to Flashcards')).toBeNull();
   fireEvent.press(scr().getByText('Okay'));
   await waitFor(() =>
-    expect(scr().queryByText('New in Flashcards 1.1')).toBeNull(),
+    expect(scr().queryByText('New in Flashcards 1.2')).toBeNull(),
   );
   const saved = JSON.parse(await AsyncStorage.getItem('cards:settings:v1'));
-  expect(saved.welcomeVersionSeen).toBe(2);
+  expect(saved.welcomeVersionSeen).toBe(3);
 });
 
 test('display size makes text larger; the contact page shows where to write', async () => {
@@ -764,15 +764,26 @@ test('all cards: sort A→Z, flip it, filter, and each deck keeps its own choice
   expect(inOrder(labels('added', false))).toBe(true);
   expect(inOrder(labels('front', false))).toBe(false);
   fireEvent.press(scr().getByText('Sort: Order added ▾'));
-  fireEvent.press(await scr().findByText('A→Z'));
-  await scr().findByText('Sort: A→Z ▾');
+  fireEvent.press(await scr().findByText('A→Z (front)'));
+  await scr().findByText('Sort: A→Z (front) ▾');
   expect(inOrder(labels('front', false))).toBe(true);
 
   // Picking the current sort again flips it.
-  fireEvent.press(scr().getByText('Sort: A→Z ▾'));
+  fireEvent.press(scr().getByText('Sort: A→Z (front) ▾'));
   fireEvent.press(await scr().findByText(/^✓ A→Z/));
-  await scr().findByText('Sort: Z→A ▾');
+  await scr().findByText('Sort: Z→A (front) ▾');
   expect(inOrder(labels('front', true))).toBe(true);
+
+  // The same list by its answers.
+  fireEvent.press(scr().getByText('Sort: Z→A (front) ▾'));
+  fireEvent.press(await scr().findByText('A→Z (back)'));
+  await scr().findByText('Sort: A→Z (back) ▾');
+  expect(inOrder(labels('back', false))).toBe(true);
+  fireEvent.press(scr().getByText('Sort: A→Z (back) ▾'));
+  fireEvent.press(await scr().findByText('A→Z (front)'));
+  fireEvent.press(await scr().findByText('Sort: A→Z (front) ▾'));
+  fireEvent.press(await scr().findByText(/^✓ A→Z \(front\)/));
+  await scr().findByText('Sort: Z→A (front) ▾');
 
   // Nothing is starred yet, so Starred alone shows no cards.
   fireEvent.press(scr().getByText('Filter: All ▾'));

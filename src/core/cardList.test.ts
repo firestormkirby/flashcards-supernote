@@ -136,6 +136,50 @@ describe('A–Z', () => {
   });
 });
 
+describe('A–Z by back', () => {
+  test('sorts on the back, with picture-only backs last either way', () => {
+    const pic = card('picture answer', {back: '', backImage: PIC});
+    const cards = [
+      card('one', {back: 'zebra'}),
+      pic,
+      card('two', {back: '**Apple**'}),
+      card('three', {back: '¿mango?'}),
+    ];
+    expect(fronts(CL.sortCards(cards, 'back', false))).toEqual([
+      'two',
+      'three',
+      'one',
+      'picture answer',
+    ]);
+    expect(fronts(CL.sortCards(cards, 'back', true))).toEqual([
+      'one',
+      'three',
+      'two',
+      'picture answer',
+    ]);
+  });
+
+  test('editing a back re-sorts by back but not by front', () => {
+    const cards = [card('b', {back: 'x'}), card('a', {back: 'y'})];
+    const byBack = CL.createCardSorter();
+    const byFront = CL.createCardSorter();
+    byBack.sort(cards, 'back', false);
+    byFront.sort(cards, 'front', false);
+    const edited = cards.map(c => (c.front === 'a' ? {...c, back: 'w'} : c));
+    expect(fronts(byBack.sort(edited, 'back', false))).toEqual(['a', 'b']);
+    expect(byBack.sortsRun).toBe(2);
+    byFront.sort(edited, 'front', false);
+    expect(byFront.sortsRun).toBe(1);
+  });
+
+  test('the menu names both sides', () => {
+    expect(CL.sortLabel('front', false)).toBe('A→Z (front)');
+    expect(CL.sortLabel('front', true)).toBe('Z→A (front)');
+    expect(CL.sortLabel('back', false)).toBe('A→Z (back)');
+    expect(CL.sortLabel('back', true)).toBe('Z→A (back)');
+  });
+});
+
 describe('other sorts', () => {
   const a = card('a', {
     review: reviewed({

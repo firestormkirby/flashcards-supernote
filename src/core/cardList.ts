@@ -13,6 +13,7 @@ import {plainText} from './richText';
 export type CardSort =
   | 'added'
   | 'front'
+  | 'back'
   | 'due'
   | 'lastStudied'
   | 'hardest'
@@ -22,7 +23,8 @@ export type CardSort =
 /** Each sort's name in its usual direction and reversed, in menu order. */
 export const CARD_SORTS: {key: CardSort; label: string; reversed: string}[] = [
   {key: 'added', label: 'Order added', reversed: 'Newest first'},
-  {key: 'front', label: 'A→Z', reversed: 'Z→A'},
+  {key: 'front', label: 'A→Z (front)', reversed: 'Z→A (front)'},
+  {key: 'back', label: 'A→Z (back)', reversed: 'Z→A (back)'},
   {key: 'due', label: 'Next review: soonest', reversed: 'Next review: latest'},
   {
     key: 'lastStudied',
@@ -46,8 +48,8 @@ export function sortLabel(sort: CardSort, reverse: boolean): string {
 const LEADING_PUNCT = /^[\s!-/:-@[-`{-~¡-¿‐-⁞]+/;
 
 /**
- * The text a card is put in A–Z order by: its front without markup, without
- * leading punctuation. Null for a picture-only (or empty) front.
+ * The text a card is put in A–Z order by: one side's text without markup,
+ * without leading punctuation. Null for a picture-only (or empty) side.
  */
 export function frontSortText(front: string): string | null {
   const text = plainText(front).replace(/\s+/g, ' ').trim();
@@ -118,6 +120,7 @@ function textCompare(): TextCompare {
 // Per card object: cards are immutable, so a card that wasn't touched by an
 // edit keeps its cached keys, and an edited card is a new object.
 const frontKeys = new WeakMap<Card, string | null>();
+const backKeys = new WeakMap<Card, string | null>();
 const dupKeys = new WeakMap<Card, string | null>();
 
 export function frontSortKey(card: Card): string | null {
@@ -129,9 +132,19 @@ export function frontSortKey(card: Card): string | null {
   return k;
 }
 
+/** As frontSortKey, for the back: null for a picture-only back. */
+export function backSortKey(card: Card): string | null {
+  let k = backKeys.get(card);
+  if (k === undefined) {
+    k = frontSortText(card.back);
+    backKeys.set(card, k);
+  }
+  return k;
+}
+
 /**
  * What a sort compares for one card, or null when the card has nothing to
- * compare (a picture-only front, a card never studied). Nulls go last in
+ * compare (a picture-only side, a card never studied). Nulls go last in
  * either direction, in the order they were added.
  */
 export function sortValue(card: Card, sort: CardSort): string | number | null {
@@ -141,6 +154,8 @@ export function sortValue(card: Card, sort: CardSort): string | number | null {
       return 0;
     case 'front':
       return frontSortKey(card);
+    case 'back':
+      return backSortKey(card);
     case 'due':
       return isNew(r) ? null : r.due;
     case 'lastStudied':
@@ -159,6 +174,7 @@ export function sortValue(card: Card, sort: CardSort): string | number | null {
 const DESCENDING: Record<CardSort, boolean> = {
   added: false,
   front: false,
+  back: false,
   due: false,
   lastStudied: true,
   hardest: true,

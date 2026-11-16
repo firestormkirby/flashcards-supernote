@@ -14,6 +14,8 @@ A Supernote NOTE plugin (Manta, Nomad) ported from [**Cards** by mrgrtapk](https
   - **Practice** goes through any cards at any time without changing your schedule.
 - **Full-screen studying.** Only the card is on screen. Tap the middle to see the answer, the right side for the next card, the left side for the previous one.
 - **Choose which cards:** all, or any mix of due, new and starred.
+- **Sort and filter a deck's cards.** In **See all cards**, sort A→Z by front or back, by order added, next review, last studied, hardest, weakest or most reviewed (tap the current sort again to flip it), and filter to starred, new, due, scheduled, forgotten before, with or without a picture, or duplicates. Each deck remembers its own choice.
+- **No doubled-up cards.** Writing a card whose front is already in the deck shows a note with **Open** to see the existing card; saving is never blocked.
 - **Stars, search, shuffle, dark mode, and three text sizes.** Card text centered or left-aligned, and a **Display size** (Default, Large, Larger, or Custom) that makes everything bigger.
 - **Bold and italics.** Write `**bold**` or `*italics*` on a card, or select words and tap **B** or **I** above the back.
 - **Double-tap a folder or deck** to go straight into its cards, full screen, in Practice or Study (your choice). Full screen can also show **Edit**, **Star** and **List** buttons once the answer shows.
@@ -153,7 +155,7 @@ android/app/…/com/flashcards/picture/   native module: cut a picture to its ma
 
 ## Status
 
-**Version 1.1.0.** All logic and UI flow tests pass. Version 1.0.0 was tested on a Supernote Manta:
+**Version 1.2.0.** All logic and UI flow tests pass. Version 1.0.0 was tested on a Supernote Manta:
 
 - ✅ The panel opens from the toolbar and **Close ✕** returns to the note.
 - ✅ **Make card** from handwriting, in a note and on a PDF.
@@ -161,6 +163,8 @@ android/app/…/com/flashcards/picture/   native module: cut a picture to its ma
 - ✅ **Picture card** from the toolbar, for the front and (through **+ Picture › From a page**) for the back.
 - ✅ Making a deck from the deck chooser, and new cards defaulting to the last-used deck.
 - ✅ The library and settings survive updating the plugin (installing a new version over the old one).
+
+New in 1.2.0: sorting and filtering in **See all cards** and the duplicate note in the card editor (tried on a Supernote Nomad).
 
 New in 1.1.0, and still to be confirmed on a device: **Card from a screenshot**, **Put in note** (text and pictures), bold and italics, double-tap, the full-screen buttons, Display size, and the "New in 1.1" tips after updating.
 
